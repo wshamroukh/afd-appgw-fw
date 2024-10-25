@@ -77,6 +77,14 @@ az network firewall create -g $rg -n $hub_vnet_name-fw -l $location --sku AZFW_V
 az network firewall ip-config create -g $rg -n $hub_vnet_name-fw-config --firewall-name $hub_vnet_name-fw --public-ip-address $hub_vnet_name-fw --vnet-name $hub_vnet_name -o none
 az network firewall update -g $rg -n $hub_vnet_name-fw -o none
 hub1_fw_private_ip=$(az network firewall show -g $rg -n $hub_vnet_name-fw --query ipConfigurations[0].privateIPAddress --output tsv) && echo "$hub_vnet_name-fw private IP address: $hub1_fw_private_ip"
+azfwid=$(az network firewall show -g $rg -n $hub_vnet_name-fw --query id -o tsv)
+
+# Log analytics Workspace
+echo -e "\e[1;36mCreating Log Analytics Workspace....\e[0m"
+az monitor log-analytics workspace create -g $rg -n $hub_vnet_name-fw-law -o none
+lawid=$(az monitor log-analytics workspace show -g $rg -n $hub_vnet_name-fw-law --query id -o tsv)
+# reference https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/azfwapplicationrule
+az monitor diagnostic-settings create -n azfwlogs -g $rg --resource $azfwid --workspace $lawid --logs '[{"category":"AZFWApplicationRule","Enabled":true}, {"category":"AZFWNetworkRule","Enabled":true}, {"category":"AzureFirewallApplicationRule","Enabled":true}, {"category":"AzureFirewallNetworkRule","Enabled":true}, {"category":"AzureFirewallDnsProxy","Enabled":true}]' --metrics '[{"category": "AllMetrics","enabled": true}]' -o none
 
 # AppGW UDR
 echo -e "\e[1;36mCreating $spoke1_appgw_name UDR....\e[0m"
