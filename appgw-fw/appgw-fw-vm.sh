@@ -12,7 +12,7 @@ spoke1_appgw_subnet_address=10.11.0.0/24
 spoke1_vm_subnet_name=vm
 spoke1_vm_subnet_address=10.11.1.0/24
 
-spoke1_appgw_name=appgw
+spoke1_appgw_name=appgw-$RANDOM
 
 admin_username=$(whoami)
 admin_password=Test#123#123
@@ -61,22 +61,24 @@ echo "Try now to access the website through application gateway before routing t
 rm $cloudinit_file
 
 # hub1 azure firewall policy
-echo -e "\e[1;36mCreating $hub_vnet_name-fw-policy Azure Firewall Policy....\e[0m"
+fw_name=$hub_vnet_name-fw-$RANDOM
+echo -e "\e[1;36mCreating $fw_name-policy Azure Firewall Policy....\e[0m"
 az extension add -n azure-firewall
 az extension update -n azure-firewall
-az network firewall policy create -g $rg -n $hub_vnet_name-fw-policy -l $location -o none
-az network firewall policy rule-collection-group create -g $rg -n $hub_vnet_name-RuleCollectionGroup --policy-name $hub_vnet_name-fw-policy --priority 100 -o none
-az network firewall policy rule-collection-group collection add-filter-collection -g $rg -n $hub_vnet_name-NetworkRuleCollection --policy-name $hub_vnet_name-fw-policy --rcg-name $hub_vnet_name-RuleCollectionGroup --action Allow --rule-name appgw-to-vm-traffic --collection-priority 100 --rule-type NetworkRule --source-addresses $spoke1_appgw_subnet_address --ip-protocols any --destination-addresses $spoke1_vm_subnet_address --destination-ports '*' -o none
-az network firewall policy rule-collection-group collection rule add -g $rg -n vm-to-appgw-traffic --policy-name $hub_vnet_name-fw-policy --rule-collection-group-name $hub_vnet_name-RuleCollectionGroup  --collection-name $hub_vnet_name-NetworkRuleCollection --rule-type NetworkRule --source-addresses $spoke1_vm_subnet_address --ip-protocols any --dest-addr $spoke1_appgw_subnet_address --destination-ports '*' -o none
+az network firewall policy create -g $rg -n $fw_name-policy -l $location -o none
+az network firewall policy rule-collection-group create -g $rg -n $hub_vnet_name-RuleCollectionGroup --policy-name $fw_name-policy --priority 100 -o none
+az network firewall policy rule-collection-group collection add-filter-collection -g $rg -n $hub_vnet_name-NetworkRuleCollection --policy-name $fw_name-policy --rcg-name $hub_vnet_name-RuleCollectionGroup --action Allow --rule-name appgw-to-vm-traffic --collection-priority 500 --rule-type NetworkRule --source-addresses $spoke1_appgw_subnet_address --ip-protocols any --destination-addresses $spoke1_vm_subnet_address --destination-ports '*' -o none
+az network firewall policy rule-collection-group collection rule add -g $rg -n vm-to-appgw-traffic --policy-name $fw_name-policy --rule-collection-group-name $hub_vnet_name-RuleCollectionGroup  --collection-name $hub_vnet_name-NetworkRuleCollection --rule-type NetworkRule --source-addresses $spoke1_vm_subnet_address --ip-protocols any --dest-addr $spoke1_appgw_subnet_address --destination-ports '*' -o none
 
 # hub1 azure firewall
-echo -e "\e[1;36mCreating $hub_vnet_name-fw Azure Firewall....\e[0m"
-az network public-ip create -g $rg -n $hub_vnet_name-fw -l $location --allocation-method Static --sku Standard -o none
-az network firewall create -g $rg -n $hub_vnet_name-fw -l $location --sku AZFW_VNet --firewall-policy $hub_vnet_name-fw-policy -o none
-az network firewall ip-config create -g $rg -n $hub_vnet_name-fw-config --firewall-name $hub_vnet_name-fw --public-ip-address $hub_vnet_name-fw --vnet-name $hub_vnet_name -o none
-az network firewall update -g $rg -n $hub_vnet_name-fw -o none
-hub1_fw_private_ip=$(az network firewall show -g $rg -n $hub_vnet_name-fw --query ipConfigurations[0].privateIPAddress --output tsv) && echo "$hub_vnet_name-fw private IP address: $hub1_fw_private_ip"
-azfwid=$(az network firewall show -g $rg -n $hub_vnet_name-fw --query id -o tsv)
+
+echo -e "\e[1;36mCreating $fw_name Azure Firewall....\e[0m"
+az network public-ip create -g $rg -n $fw_name -l $location --allocation-method Static --sku Standard -o none
+az network firewall create -g $rg -n $fw_name -l $location --sku AZFW_VNet --firewall-policy $fw_name-policy -o none
+az network firewall ip-config create -g $rg -n $fw_name-config --firewall-name $fw_name --public-ip-address $fw_name --vnet-name $hub_vnet_name -o none
+az network firewall update -g $rg -n $fw_name -o none
+hub1_fw_private_ip=$(az network firewall show -g $rg -n $fw_name --query ipConfigurations[0].privateIPAddress --output tsv) && echo "$fw_name private IP address: $hub1_fw_private_ip"
+azfwid=$(az network firewall show -g $rg -n $fw_name --query id -o tsv)
 
 # Log analytics Workspace
 echo -e "\e[1;36mCreating Log Analytics Workspace....\e[0m"
