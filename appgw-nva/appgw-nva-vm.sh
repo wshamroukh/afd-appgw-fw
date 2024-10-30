@@ -94,7 +94,7 @@ az vm boot-diagnostics enable -g $rg -n $hub_nva_subnet_name -o none
 # configuring opnsense
 echo -e "\e[1;36mConfiguring $hub_nva_subnet_name...\e[0m"
 config_file=~/config.xml
-curl -o $config_file  https://raw.githubusercontent.com/wshamroukh/afd-appgw-fw/refs/heads/main/appgw-nva/config.xml
+curl -o $config_file  https://raw.githubusercontent.com/wshamroukh/afd-appgw-fw/refs/heads/main/appgw-nva/config-vm.xml
 echo -e "\e[1;36mCopying configuration files to $vm_name and installing opnsense firewall...\e[0m"
 scp -o StrictHostKeyChecking=no $opnsense_init_file $config_file $admin_username@$hub_nva_public_ip:/home/$admin_username
 ssh -o StrictHostKeyChecking=no $admin_username@$hub_nva_public_ip "chmod +x /home/$admin_username/opnsense_init.sh && sh /home/$admin_username/opnsense_init.sh"
@@ -117,7 +117,7 @@ echo "Try now to access the website through application gateway before routing t
 rm $cloudinit_file
 
 
-echo "Access nva management portal via https://$hub_nva_public_ip username: root, passwd: Test#123#123 - it is highly recommended to change the password as soon as you login"
+echo "Access nva management portal via https://$hub_nva_public_ip username: root, passwd: opnsense - it is highly recommended to change the password as soon as you login"
 
 # AppGW UDR
 echo -e "\e[1;36mCreating $spoke1_appgw_name UDR....\e[0m"
