@@ -398,6 +398,7 @@
         <time>1730307261.5594</time>
         <description>/firewall_rules_edit.php made changes</description>
       </created>
+      <log>1</log>
     </rule>
   </filter>
   <rrd>
@@ -452,8 +453,8 @@
   </widgets>
   <revision>
     <username>root@45.155.47.233</username>
-    <time>1730309699.8989</time>
-    <description>/system_usermanager_passwordmg.php made changes</description>
+    <time>1730311266.1804</time>
+    <description>/firewall_rules.php made changes</description>
   </revision>
   <OPNsense>
     <captiveportal version="1.0.2">
