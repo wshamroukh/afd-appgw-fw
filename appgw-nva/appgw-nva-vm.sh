@@ -112,12 +112,12 @@ az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method 
 appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv) && echo AppGW public IP: $appgwpip
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none
 
-echo "Try now to access the website through application gateway before routing the traffic to azure firewall: http://$appgwpip"
+echo "Try now to access the website through application gateway before routing the traffic to nva: http://$appgwpip"
 # clean up cloudinit file
 rm $cloudinit_file
 
 
-echo "Access nva management portal via https://$hub_nva_public_ip username: root, passwd: opnsense - it is highly recommended to change the password as soon as you login"
+echo "Access nva management portal via https://$hub_nva_public_ip username: root, passwd: Test#123#123 - it is highly recommended to change the password as soon as you login"
 
 # AppGW UDR
 echo -e "\e[1;36mCreating $spoke1_appgw_name UDR....\e[0m"
@@ -132,4 +132,4 @@ az network route-table route create -g $rg -n default --address-prefix "0.0.0.0/
 az network route-table route create -g $rg -n to-$spoke1_appgw_name --address-prefix $spoke1_appgw_subnet_address --next-hop-type VirtualAppliance --route-table-name $spoke1_vm_subnet_name --next-hop-ip-address $hub_nva_private_ip -o none
 az network vnet subnet update -g $rg -n $spoke1_vm_subnet_name --vnet-name $spoke1_vnet_name --route-table $spoke1_vm_subnet_name -o none
 
-echo "Try now to access the website through application gateway after routing the traffic to azure firewall: http://$appgwpip"
+echo "Try now to access the website through application gateway after routing the traffic to nva: http://$appgwpip"
