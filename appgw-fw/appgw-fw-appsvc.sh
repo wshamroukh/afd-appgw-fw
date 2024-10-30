@@ -60,8 +60,6 @@ az network private-endpoint dns-zone-group create -g $rg --endpoint-name $spoke1
 # app service vnet integration:
 echo -e "\e[1;36mEnable VNet integration on $spoke1_app_svc_name App Service...\e[0m"
 az webapp vnet-integration add -g $rg -n $spoke1_app_svc_name --vnet $spoke1_vnet_name --subnet $spoke1_appsvc_subnet_name -o none
-# Disable Outbound internet traffic settings:
-az resource update -g $rg -n $spoke1_app_svc_name --resource-type "Microsoft.Web/sites" --set properties.vnetRouteAllEnabled=false -o none
 
 # application gateway
 echo -e "\e[1;36mCreating $spoke1_appgw_name Application Gateway...\e[0m"
