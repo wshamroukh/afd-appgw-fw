@@ -34,7 +34,7 @@ az network vnet subnet create -g $rg -n $spoke1_pe_subnet_name --address-prefixe
 az network vnet subnet create -g $rg -n $spoke1_appsvc_subnet_name --address-prefixes $spoke1_appsvc_subnet_address --vnet-name $spoke1_vnet_name -o none
 
 # VNet Peering between hub1 and spoke1
-echo -e "\e[1;36mCreating VNet peerring between $hub_vnet_name and $spoke1_vnet_name...\e[0m"
+echo -e "\e[1;36mCreating VNet peering between $hub_vnet_name and $spoke1_vnet_name...\e[0m"
 az network vnet peering create -g $rg -n $hub_vnet_name-to-$spoke1_vnet_name-peering --remote-vnet $spoke1_vnet_name --vnet-name $hub_vnet_name --allow-vnet-access true --allow-forwarded-traffic true -o none
 az network vnet peering create -g $rg -n $spoke1_vnet_name-to-$hub_vnet_name-peering --remote-vnet $hub_vnet_name --vnet-name $spoke1_vnet_name --allow-vnet-access true --allow-forwarded-traffic true -o none
 
@@ -69,7 +69,7 @@ az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method 
 appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv) && echo AppGW public IP: $appgwpip
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $appfqdn --priority 100 -o none
 appgwhttpsettings=$(az network application-gateway http-settings list -g $rg --gateway-name $spoke1_appgw_name --query [].name -o tsv)
-az network application-gateway http-settings update -g $rg --name $appgwhttpsettings --gateway-name $spoke1_appgw_name --host-name-from-backend-pool true --protocol Http --port 80 -o none
+az network application-gateway http-settings update -g $rg --name $appgwhttpsettings --gateway-name $spoke1_appgw_name --host-name-from-backend-pool true --protocol Https --port 443 --host-name $appfqdn -o none
 
 echo "Try now to access the website through application gateway before routing the traffic to azure firewall: http://$appgwpip"
 
@@ -80,8 +80,8 @@ az extension add -n azure-firewall
 az extension update -n azure-firewall
 az network firewall policy create -g $rg -n $fw_name-policy -l $location -o none
 az network firewall policy rule-collection-group create -g $rg -n $hub_vnet_name-RuleCollectionGroup --policy-name $fw_name-policy --priority 100 -o none
-az network firewall policy rule-collection-group collection add-filter-collection -g $rg -n $hub_vnet_name-NetworkRuleCollection --policy-name $fw_name-policy --rcg-name $hub_vnet_name-RuleCollectionGroup --action Allow --rule-name appgw-to-vm-traffic --collection-priority 500 --rule-type NetworkRule --source-addresses $spoke1_appgw_subnet_address --ip-protocols any --destination-addresses $spoke1_vm_subnet_address --destination-ports '*' -o none
-az network firewall policy rule-collection-group collection rule add -g $rg -n vm-to-appgw-traffic --policy-name $fw_name-policy --rule-collection-group-name $hub_vnet_name-RuleCollectionGroup  --collection-name $hub_vnet_name-NetworkRuleCollection --rule-type NetworkRule --source-addresses $spoke1_vm_subnet_address --ip-protocols any --dest-addr $spoke1_appgw_subnet_address --destination-ports '*' -o none
+az network firewall policy rule-collection-group collection add-filter-collection -g $rg -n $hub_vnet_name-NetworkRuleCollection --policy-name $fw_name-policy --rcg-name $hub_vnet_name-RuleCollectionGroup --action Allow --rule-name appgw-to-pe-traffic --collection-priority 500 --rule-type NetworkRule --source-addresses $spoke1_appgw_subnet_address --ip-protocols any --destination-addresses $spoke1_pe_subnet_address --destination-ports '*' -o none
+az network firewall policy rule-collection-group collection rule add -g $rg -n appsvc-to-appgw-traffic --policy-name $fw_name-policy --rule-collection-group-name $hub_vnet_name-RuleCollectionGroup  --collection-name $hub_vnet_name-NetworkRuleCollection --rule-type NetworkRule --source-addresses $spoke1_appsvc_subnet_address --ip-protocols any --dest-addr $spoke1_appgw_subnet_address --destination-ports '*' -o none
 
 # hub1 azure firewall
 echo -e "\e[1;36mCreating $fw_name Azure Firewall....\e[0m"

@@ -40,7 +40,7 @@ az network vnet create -g $rg -n $spoke1_vnet_name -l $location --address-prefix
 az network vnet subnet create -g $rg -n $spoke1_vm_subnet_name --address-prefixes $spoke1_vm_subnet_address --vnet-name $spoke1_vnet_name -o none
 
 # VNet Peering between hub1 and spoke1
-echo -e "\e[1;36mCreating VNet peerring between $hub_vnet_name and $spoke1_vnet_name...\e[0m"
+echo -e "\e[1;36mCreating VNet peering between $hub_vnet_name and $spoke1_vnet_name...\e[0m"
 az network vnet peering create -g $rg -n $hub_vnet_name-to-$spoke1_vnet_name-peering --remote-vnet $spoke1_vnet_name --vnet-name $hub_vnet_name --allow-vnet-access true --allow-forwarded-traffic true -o none
 az network vnet peering create -g $rg -n $spoke1_vnet_name-to-$hub_vnet_name-peering --remote-vnet $hub_vnet_name --vnet-name $spoke1_vnet_name --allow-vnet-access true --allow-forwarded-traffic true -o none
 
@@ -68,7 +68,6 @@ az extension update -n azure-firewall
 az network firewall policy create -g $rg -n $fw_name-policy -l $location -o none
 az network firewall policy rule-collection-group create -g $rg -n $hub_vnet_name-RuleCollectionGroup --policy-name $fw_name-policy --priority 100 -o none
 az network firewall policy rule-collection-group collection add-filter-collection -g $rg -n $hub_vnet_name-NetworkRuleCollection --policy-name $fw_name-policy --rcg-name $hub_vnet_name-RuleCollectionGroup --action Allow --rule-name appgw-to-vm-traffic --collection-priority 500 --rule-type NetworkRule --source-addresses $spoke1_appgw_subnet_address --ip-protocols any --destination-addresses $spoke1_vm_subnet_address --destination-ports '*' -o none
-az network firewall policy rule-collection-group collection rule add -g $rg -n vm-to-appgw-traffic --policy-name $fw_name-policy --rule-collection-group-name $hub_vnet_name-RuleCollectionGroup  --collection-name $hub_vnet_name-NetworkRuleCollection --rule-type NetworkRule --source-addresses $spoke1_vm_subnet_address --ip-protocols any --dest-addr $spoke1_appgw_subnet_address --destination-ports '*' -o none
 
 # hub1 azure firewall
 
