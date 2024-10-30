@@ -1,4 +1,4 @@
-rg=appg-fw-vm
+rg=appgw-fw-vm
 location=centralindia
 
 hub_vnet_name=hub
