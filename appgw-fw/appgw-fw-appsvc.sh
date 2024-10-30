@@ -69,7 +69,7 @@ az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method 
 appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv) && echo AppGW public IP: $appgwpip
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $appfqdn --priority 100 -o none
 appgwhttpsettings=$(az network application-gateway http-settings list -g $rg --gateway-name $spoke1_appgw_name --query [].name -o tsv)
-az network application-gateway http-settings update -g $rg --name $appgwhttpsettings --gateway-name $spoke1_appgw_name --host-name-from-backend-pool true --protocol Http --port 80 -o none
+az network application-gateway http-settings update -g $rg --name $appgwhttpsettings --gateway-name $spoke1_appgw_name --host-name-from-backend-pool true --protocol Https --port 443 -o none
 
 echo "Try now to access the website through application gateway before routing the traffic to azure firewall: http://$appgwpip"
 
