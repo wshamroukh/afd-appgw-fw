@@ -66,7 +66,7 @@ az network vnet create -g $rg -n $hub_vnet_name -l $location --address-prefixes 
 # spoke1 vnet
 echo -e "\e[1;36mCreating $spoke1_vnet_name VNet...\e[0m"
 az network vnet create -g $rg -n $spoke1_vnet_name -l $location --address-prefixes $spoke1_vnet_address --subnet-name $spoke1_appgw_subnet_name --subnet-prefixes $spoke1_appgw_subnet_address -o none
-az network vnet subnet create -g $rg -n $spoke1_pe_subnet_name --address-prefixes $spoke1_pe_subnet_address --vnet-name $spoke1_vnet_name --disable-private-endpoint-network-policies false -o none
+az network vnet subnet create -g $rg -n $spoke1_pe_subnet_name --address-prefixes $spoke1_pe_subnet_address --vnet-name $spoke1_vnet_name --private-endpoint-network-policies Enabled -o none
 az network vnet subnet create -g $rg -n $spoke1_appsvc_subnet_name --address-prefixes $spoke1_appsvc_subnet_address --vnet-name $spoke1_vnet_name -o none
 
 # VNet Peering between hub1 and spoke1
