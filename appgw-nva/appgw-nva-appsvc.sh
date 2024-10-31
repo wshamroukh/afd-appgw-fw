@@ -77,7 +77,7 @@ az network vnet peering create -g $rg -n $spoke1_vnet_name-to-$hub_vnet_name-pee
 # hub fw opnsense vm
 echo -e "\e[1;36mCreating $hub_nva_subnet_name VM...\e[0m"
 az network public-ip create -g $rg -n "$hub_nva_subnet_name" -l $location --allocation-method Static --sku Basic -o none
-az network nic create -g $rg -n "$hub_nva_subnet_name" --subnet $hub_nva_subnet_name --vnet-name $hub_vnet_name --ip-forwarding true --private-ip-address 10.1.0.5 --public-ip-address "$hub_nva_subnet_name" -o none
+az network nic create -g $rg -n "$hub_nva_subnet_name" --subnet $hub_nva_subnet_name --vnet-name $hub_vnet_name --ip-forwarding true --private-ip-address 10.1.0.4 --public-ip-address "$hub_nva_subnet_name" -o none
 az vm create -g $rg -n $hub_nva_subnet_name --image $hub_nva_vm_image --nics "$hub_nva_subnet_name" --os-disk-name $hub_nva_subnet_name --size Standard_B2als_v2 --admin-username $admin_username --generate-ssh-keys -o none
 # hub fw opnsense vm details:
 hub_nva_public_ip=$(az network public-ip show -g $rg -n "$hub_nva_subnet_name" --query 'ipAddress' --output tsv) && echo $hub_nva_subnet_name public ip: $hub_nva_public_ip
