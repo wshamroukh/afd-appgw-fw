@@ -42,8 +42,8 @@ az network vnet peering create -g $rg -n $spoke1_vnet_name-to-$hub_vnet_name-pee
 echo -e "\e[1;36mCreating $spoke1_app_svc_name App Service...\e[0m"
 az appservice plan create -g $rg -n $spoke1_app_svc_name-Plan --sku P1V3 --location $location --is-linux -o none
 az webapp create -g $rg -n $spoke1_app_svc_name --plan $spoke1_app_svc_name-Plan --container-image-name jelledruyts/inspectorgadget:latest -o none
-appid=$(az webapp show -g $rg -n $spoke1_app_svc_name --query id -o tsv) && echo $appid
-appfqdn=$(az webapp show -g $rg -n $spoke1_app_svc_name --query hostNames[] -o tsv) && echo app service fqdn: $appfqdn
+appid=$(az webapp show -g $rg -n $spoke1_app_svc_name --query id -o tsv)
+appfqdn=$(az webapp show -g $rg -n $spoke1_app_svc_name --query hostNames[] -o tsv)
 
 # app service private endpoint
 echo -e "\e[1;36mCreating Service Endpoint for $spoke1_app_svc_name App Service...\e[0m"
