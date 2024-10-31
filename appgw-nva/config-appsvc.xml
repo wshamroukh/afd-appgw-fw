@@ -379,8 +379,9 @@
       <interface>lan</interface>
       <ipprotocol>inet</ipprotocol>
       <statetype>keep state</statetype>
-      <descr>allow appgw to vm traffic</descr>
+      <descr>allow appgw to appsvc private endpoint traffic</descr>
       <direction>in</direction>
+      <log>1</log>
       <quick>1</quick>
       <source>
         <address>appgw</address>
@@ -389,8 +390,8 @@
         <address>privateEndpoint</address>
       </destination>
       <updated>
-        <username>root@45.155.47.233</username>
-        <time>1730307261.5594</time>
+        <username>root@85.154.22.66</username>
+        <time>1730364193.5507</time>
         <description>/firewall_rules_edit.php made changes</description>
       </updated>
       <created>
@@ -398,7 +399,6 @@
         <time>1730307261.5594</time>
         <description>/firewall_rules_edit.php made changes</description>
       </created>
-      <log>1</log>
     </rule>
   </filter>
   <rrd>
@@ -453,8 +453,8 @@
   </widgets>
   <revision>
     <username>root@85.154.22.66</username>
-    <description>/api/firewall/alias/set made changes</description>
-    <time>1730363476.1768</time>
+    <time>1730364193.5983</time>
+    <description>/firewall_rules_edit.php made changes</description>
   </revision>
   <OPNsense>
     <captiveportal version="1.0.2">
