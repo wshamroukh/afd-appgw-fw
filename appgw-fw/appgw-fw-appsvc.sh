@@ -79,7 +79,6 @@ az extension update -n azure-firewall
 az network firewall policy create -g $rg -n $fw_name-policy -l $location -o none
 az network firewall policy rule-collection-group create -g $rg -n $hub_vnet_name-RuleCollectionGroup --policy-name $fw_name-policy --priority 100 -o none
 az network firewall policy rule-collection-group collection add-filter-collection -g $rg -n $hub_vnet_name-NetworkRuleCollection --policy-name $fw_name-policy --rcg-name $hub_vnet_name-RuleCollectionGroup --action Allow --rule-name appgw-to-pe-traffic --collection-priority 500 --rule-type NetworkRule --source-addresses $spoke1_appgw_subnet_address --ip-protocols any --destination-addresses $spoke1_pe_subnet_address --destination-ports '*' -o none
-az network firewall policy rule-collection-group collection rule add -g $rg -n appsvc-to-appgw-traffic --policy-name $fw_name-policy --rule-collection-group-name $hub_vnet_name-RuleCollectionGroup  --collection-name $hub_vnet_name-NetworkRuleCollection --rule-type NetworkRule --source-addresses $spoke1_appsvc_subnet_address --ip-protocols any --dest-addr $spoke1_appgw_subnet_address --destination-ports '*' -o none
 
 # hub1 azure firewall
 echo -e "\e[1;36mCreating $fw_name Azure Firewall....\e[0m"
