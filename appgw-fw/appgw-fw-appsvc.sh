@@ -48,8 +48,6 @@ appfqdn=$(az webapp show -g $rg -n $spoke1_app_svc_name --query hostNames[] -o t
 # app service private endpoint
 echo -e "\e[1;36mCreating Service Endpoint for $spoke1_app_svc_name App Service...\e[0m"
 az network private-endpoint create -g $rg -n $spoke1_app_svc_name-pe --nic-name $spoke1_app_svc_name-pe-nic --vnet-name $spoke1_vnet_name --subnet $spoke1_pe_subnet_name --private-connection-resource-id $appid --group-id sites --connection-name $spoke1_app_svc_name-connection -l $location -o none
-az network private-endpoint show -g $rg -n $spoke1_app_svc_name-pe --query customDnsConfigs[0].fqdn -o tsv
-az network private-endpoint show -g $rg -n $spoke1_app_svc_name-pe --query customDnsConfigs[0].ipAddresses -o tsv
 
 # configure private dns
 echo -e "\e[1;36mCreating Private DNS Zone for $spoke1_app_svc_name App Service...\e[0m"
