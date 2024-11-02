@@ -68,8 +68,8 @@ appgwhttpsettings=$(az network application-gateway http-settings list -g $rg --g
 az network application-gateway http-settings update -g $rg --name $appgwhttpsettings --gateway-name $spoke1_appgw_name --host-name $appfqdn --protocol Https --port 443 -o none
 appgwprivip=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query frontendIPConfigurations[0].privateIPAddress -o tsv)
 frontendid=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query frontendIPConfigurations[0].id -o tsv)
-# associate the listener with private endpoint
-echo -e "\e[1;36mAssociating the private endpoint $appgwprivip with the http listener on $spoke1_appgw_name Application Gateway...\e[0m"
+# associate the listener with private frontend
+echo -e "\e[1;36mAssociating the private frontend $appgwprivip with the http listener on $spoke1_appgw_name Application Gateway...\e[0m"
 az resource update -g $rg -n $spoke1_appgw_name --resource-type "Microsoft.Network/applicationGateways" --set properties.httpListeners[0].properties.frontendIPConfiguration.id=$frontendid -o none
 
 # hub1 azure firewall policy

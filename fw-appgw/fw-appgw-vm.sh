@@ -57,8 +57,8 @@ appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipA
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --private-ip-address 10.11.0.10 --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none
 appgwprivip=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query frontendIPConfigurations[0].privateIPAddress -o tsv)
 frontendid=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query frontendIPConfigurations[0].id -o tsv)
-# associate the listener with private endpoint
-echo -e "\e[1;36mAssociating the private endpoint $appgwprivip with the http listener on $spoke1_appgw_name Application Gateway...\e[0m"
+# associate the listener with private frontend
+echo -e "\e[1;36mAssociating the private frontend $appgwprivip with the http listener on $spoke1_appgw_name Application Gateway...\e[0m"
 az resource update -g $rg -n $spoke1_appgw_name --resource-type "Microsoft.Network/applicationGateways" --set properties.httpListeners[0].properties.frontendIPConfiguration.id=$frontendid -o none
 
 # clean up cloudinit file
