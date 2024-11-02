@@ -77,22 +77,21 @@ fw_name=$hub_vnet_name-fw-$RANDOM
 echo -e "\e[1;36mCreating $fw_name-policy Azure Firewall Policy....\e[0m"
 az extension add -n azure-firewall
 az extension update -n azure-firewall
+az network public-ip create -g $rg -n $fw_name -l $location --allocation-method Static --sku Standard -o none
 az network firewall policy create -g $rg -n $fw_name-policy -l $location -o none
 az network firewall policy rule-collection-group create -g $rg -n $hub_vnet_name-RuleCollectionGroup --policy-name $fw_name-policy --priority 100 -o none
+# Add A DNAT Rule
+echo -e "\e[1;36mCreating a DNAT rule to access the website through the firewall....\e[0m"
+az network firewall policy rule-collection-group collection add-nat-collection -g $rg -n $hub_vnet_name-DNATCollection --policy-name $fw_name-policy --rcg-name $hub_vnet_name-RuleCollectionGroup --collection-priority 100 --ip-protocols Tcp --dest-addr $hub_fw_pip --destination-ports 80 --source-addresses '*' --translated-address $appgwprivip --translated-port 80 --rule-name allowDNATtoAppgw --action DNAT -o none
 
 # hub azure firewall
 echo -e "\e[1;36mCreating $fw_name Azure Firewall....\e[0m"
-az network public-ip create -g $rg -n $fw_name -l $location --allocation-method Static --sku Standard -o none
 az network firewall create -g $rg -n $fw_name -l $location --sku AZFW_VNet --firewall-policy $fw_name-policy -o none
 az network firewall ip-config create -g $rg -n $fw_name-config --firewall-name $fw_name --public-ip-address $fw_name --vnet-name $hub_vnet_name -o none
 az network firewall update -g $rg -n $fw_name -o none
 hub_fw_private_ip=$(az network firewall show -g $rg -n $fw_name --query ipConfigurations[0].privateIPAddress --output tsv) && echo "$fw_name private IP address: $hub_fw_private_ip"
 hub_fw_pip=$(az network public-ip show -g $rg -n $fw_name --query ipAddress --output tsv) && echo "$fw_name public IP address: $hub_fw_pip"
 azfwid=$(az network firewall show -g $rg -n $fw_name --query id -o tsv)
-
-# Add A DNAT Rule
-echo -e "\e[1;36mCreating a DNAT rule to access the website through the firewall....\e[0m"
-az network firewall policy rule-collection-group collection add-nat-collection -g $rg -n $hub_vnet_name-DNATCollection --policy-name $fw_name-policy --rcg-name $hub_vnet_name-RuleCollectionGroup --collection-priority 100 --ip-protocols Tcp --dest-addr $hub_fw_pip --destination-ports 80 --source-addresses '*' --translated-address $appgwprivip --translated-port 80 --rule-name allowDNATtoAppgw --action DNAT -o none
 
 # Log analytics Workspace
 echo -e "\e[1;36mCreating Log Analytics Workspace....\e[0m"
