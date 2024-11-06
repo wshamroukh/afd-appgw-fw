@@ -50,7 +50,8 @@ afdhostname=$(az afd endpoint show -g $rg -n wadafdfe --profile-name wadafd --qu
 az afd origin-group create -g $rg -n og --profile-name wadafd --probe-request-type GET --probe-protocol Http --probe-interval-in-seconds 60 --probe-path / --sample-size 4 --successful-samples-required 3 --additional-latency-in-milliseconds 50 -o none
 az afd origin create -g $rg --host-name $appfqdn --origin-host-header $appfqdn --origin-group-name og --profile-name wadafd --origin-name vm1 --priority 1 --enabled-state Enabled --enable-private-link true  --private-link-location $location --private-link-resource $appid --private-link-request-message "Please approve Private Endpoint for AFD" --private-link-sub-resource-type sites --http-port 80 --https-port 443 --weight 1000 -o none
 az afd route create --resource-group $rg --profile-name wadafd --endpoint-name wadafdfe --forwarding-protocol MatchRequest --route-name route --https-redirect Enabled --origin-group og --supported-protocols Http Https --link-to-default-domain Enabled -o none
-
+peid=$(az network private-endpoint-connection list --name $spoke1_app_svc_name -g $rg --type Microsoft.Web/sites --query [].id -o tsv)
+az network private-endpoint-connection approve --id $peid --query properties.privateLinkServiceConnectionState.status
 echo "Access the website through AFD: http://$afdhostname"
 
 
