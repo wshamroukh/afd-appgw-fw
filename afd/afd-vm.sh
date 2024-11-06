@@ -61,4 +61,3 @@ az afd origin-group create -g $rg -n og --profile-name wadafd --probe-request-ty
 az afd origin create -g $rg --host-name $vmip --origin-host-header $vmip --origin-group-name og --profile-name wadafd --origin-name vm1 --priority 1 --enabled-state Enabled --http-port 80 --https-port 443 --weight 1000 -o none
 az afd route create --resource-group $rg --profile-name wadafd --endpoint-name wadafdfe --forwarding-protocol HttpOnly --route-name route --https-redirect Enabled --origin-group og --supported-protocols Http Https --link-to-default-domain Enabled -o none
 echo "Access the website through AFD: http://$afdhostname"
-
