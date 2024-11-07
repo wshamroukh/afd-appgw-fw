@@ -1,39 +1,11 @@
 rg=afd-appsvc
 location=centralindia
 
-hub_vnet_name=hub
-hub_vnet_address=10.1.0.0/16
-hub_fw_subnet_address=10.1.0.0/24
-
-spoke1_vnet_name=spoke1
-spoke1_vnet_address=10.11.0.0/16
-spoke1_appgw_subnet_name=appgw
-spoke1_appgw_subnet_address=10.11.0.0/24
-spoke1_pe_subnet_name=pe
-spoke1_pe_subnet_address=10.11.1.0/24
-spoke1_appsvc_subnet_name=appsvc
-spoke1_appsvc_subnet_address=10.11.2.0/24
-
 spoke1_app_svc_name=waddahApp-$RANDOM
 
 # Resource Groups
 echo -e "\e[1;36mCreating $rg Resource Group...\e[0m"
 az group create -l $location -n $rg -o none
-
-# hub1 vnet
-echo -e "\e[1;36mCreating $hub_vnet_name VNet...\e[0m"
-az network vnet create -g $rg -n $hub_vnet_name -l $location --address-prefixes $hub_vnet_address --subnet-name AzureFirewallSubnet --subnet-prefixes $hub_fw_subnet_address -o none
-
-# spoke1 vnet
-echo -e "\e[1;36mCreating $spoke1_vnet_name VNet...\e[0m"
-az network vnet create -g $rg -n $spoke1_vnet_name -l $location --address-prefixes $spoke1_vnet_address --subnet-name $spoke1_appgw_subnet_name --subnet-prefixes $spoke1_appgw_subnet_address -o none
-az network vnet subnet create -g $rg -n $spoke1_pe_subnet_name --address-prefixes $spoke1_pe_subnet_address --vnet-name $spoke1_vnet_name --private-endpoint-network-policies Enabled -o none
-az network vnet subnet create -g $rg -n $spoke1_appsvc_subnet_name --address-prefixes $spoke1_appsvc_subnet_address --vnet-name $spoke1_vnet_name -o none
-
-# VNet Peering between hub1 and spoke1
-echo -e "\e[1;36mCreating VNet peering between $hub_vnet_name and $spoke1_vnet_name...\e[0m"
-az network vnet peering create -g $rg -n $hub_vnet_name-to-$spoke1_vnet_name-peering --remote-vnet $spoke1_vnet_name --vnet-name $hub_vnet_name --allow-vnet-access true --allow-forwarded-traffic true -o none
-az network vnet peering create -g $rg -n $spoke1_vnet_name-to-$hub_vnet_name-peering --remote-vnet $hub_vnet_name --vnet-name $spoke1_vnet_name --allow-vnet-access true --allow-forwarded-traffic true -o none
 
 # app service
 echo -e "\e[1;36mCreating $spoke1_app_svc_name App Service...\e[0m"
