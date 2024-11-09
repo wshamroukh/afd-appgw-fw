@@ -23,7 +23,15 @@ cloudinit_file=~/cloudinit.txt
 cat <<EOF > $cloudinit_file
 #cloud-config
 runcmd:
-  - sudo apt update && sudo apt install -y nginx
+  - apt update && apt-get install -y dotnet-sdk-8.0 nginx git
+  - mv /etc/nginx/sites-available/default /etc/nginx/sites-available/default.bak
+  - cd /etc/nginx/sites-available/ && curl -O https://raw.githubusercontent.com/wshamroukh/nginx-aspdotnet/refs/heads/main/default
+  - git clone https://github.com/jelledruyts/InspectorGadget /var/www/InspectorGadget
+  - mv /var/www/InspectorGadget/WebApp /var/www/ && rm -rf /var/www/InspectorGadget
+  - cd /etc/systemd/system/ && curl -O https://raw.githubusercontent.com/wshamroukh/nginx-aspdotnet/refs/heads/main/inspectorg.service
+  - systemctl enable inspectorg && systemctl start inspectorg
+  - nginx -t && nginx -s reload
+  - reboot
 EOF
 
 # Resource Groups
