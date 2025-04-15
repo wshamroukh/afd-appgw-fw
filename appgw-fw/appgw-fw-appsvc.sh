@@ -17,8 +17,6 @@ spoke1_appsvc_subnet_address=10.11.2.0/24
 spoke1_appgw_name=appgw-$RANDOM
 spoke1_app_svc_name=waddahApp-$RANDOM
 
-admin_username=$(whoami)
-
 # Resource Groups
 echo -e "\e[1;36mCreating $rg Resource Group...\e[0m"
 az group create -l $location -n $rg -o none
