@@ -90,7 +90,7 @@ az network nic create -g $rg -n "$hub_nva_subnet_name" --subnet $hub_nva_subnet_
 az vm create -g $rg -n $hub_nva_subnet_name --image $hub_nva_vm_image --nics "$hub_nva_subnet_name" --os-disk-name $hub_nva_subnet_name --size Standard_B2als_v2 --admin-username $admin_username --generate-ssh-keys -o none
 # hub fw opnsense vm details:
 hub_nva_public_ip=$(az network public-ip show -g $rg -n "$hub_nva_subnet_name" --query 'ipAddress' --output tsv) && echo $hub_nva_subnet_name public ip: $hub_nva_public_ip
-hub_nva_private_ip=$(az network nic show -g $rg -n $hub_nva_subnet_name --query ipConfigurations[].privateIPAddress -o tsv) && echo $hub_nva_subnet_name private IP: $hub_nva_private_ip
+hub_nva_private_ip=$(az network nic show -g $rg -n $hub_nva_subnet_name --query ipConfigurations[].privateIPAddress -o tsv | tr -d '\r') && echo $hub_nva_subnet_name private IP: $hub_nva_private_ip
 
 # opnsense vm boot diagnostics
 echo -e "\e[1;36mEnabling VM boot diagnostics for $hub_nva_subnet_name...\e[0m"
@@ -109,14 +109,14 @@ rm $opnsense_init_file $config_file
 echo -e "\e[1;36mCreating $spoke1_app_svc_name App Service...\e[0m"
 az appservice plan create -g $rg -n $spoke1_app_svc_name-Plan --sku P1V3 --location $location --is-linux -o none
 az webapp create -g $rg -n $spoke1_app_svc_name --plan $spoke1_app_svc_name-Plan --container-image-name jelledruyts/inspectorgadget:latest -o none
-appid=$(az webapp show -g $rg -n $spoke1_app_svc_name --query id -o tsv) && echo $appid
-appfqdn=$(az webapp show -g $rg -n $spoke1_app_svc_name --query hostNames[] -o tsv) && echo app service fqdn: $appfqdn
+appid=$(az webapp show -g $rg -n $spoke1_app_svc_name --query id -o tsv | tr -d '\r') && echo $appid
+appfqdn=$(az webapp show -g $rg -n $spoke1_app_svc_name --query hostNames[] -o tsv | tr -d '\r') && echo app service fqdn: $appfqdn
 
 # app service private endpoint
 echo -e "\e[1;36mCreating Service Endpoint for $spoke1_app_svc_name App Service...\e[0m"
 az network private-endpoint create -g $rg -n $spoke1_app_svc_name-pe --nic-name $spoke1_app_svc_name-pe-nic --vnet-name $spoke1_vnet_name --subnet $spoke1_pe_subnet_name --private-connection-resource-id $appid --group-id sites --connection-name $spoke1_app_svc_name-connection -l $location -o none
 az network private-endpoint show -g $rg -n $spoke1_app_svc_name-pe --query customDnsConfigs[0].fqdn -o tsv
-appsvcip=$(az network nic show -g $rg -n $spoke1_app_svc_name-pe-nic --query ipConfigurations[0].privateIPAddress -o tsv)
+appsvcip=$(az network nic show -g $rg -n $spoke1_app_svc_name-pe-nic --query ipConfigurations[0].privateIPAddress -o tsv | tr -d '\r')
 
 # configure private dns
 echo -e "\e[1;36mCreating Private DNS Zone for $spoke1_app_svc_name App Service...\e[0m"
@@ -131,9 +131,9 @@ az webapp vnet-integration add -g $rg -n $spoke1_app_svc_name --vnet $spoke1_vne
 # application gateway
 echo -e "\e[1;36mCreating $spoke1_appgw_name Application Gateway...\e[0m"
 az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method Static --sku Standard -o none
-appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv) && echo AppGW public IP: $appgwpip
+appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv | tr -d '\r') && echo AppGW public IP: $appgwpip
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name  --servers $appsvcip --priority 100 -o none
-appgwhttpsettings=$(az network application-gateway http-settings list -g $rg --gateway-name $spoke1_appgw_name --query [].name -o tsv)
+appgwhttpsettings=$(az network application-gateway http-settings list -g $rg --gateway-name $spoke1_appgw_name --query [].name -o tsv | tr -d '\r')
 az network application-gateway http-settings update -g $rg --name $appgwhttpsettings --gateway-name $spoke1_appgw_name --host-name $appfqdn --protocol Https --port 443 -o none
 
 echo "Try now to access the website through application gateway before routing the traffic to nva: http://$appgwpip"

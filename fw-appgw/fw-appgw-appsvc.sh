@@ -42,8 +42,8 @@ az network vnet peering create -g $rg -n $spoke1_vnet_name-to-$hub_vnet_name-pee
 echo -e "\e[1;36mCreating $spoke1_app_svc_name App Service...\e[0m"
 az appservice plan create -g $rg -n $spoke1_app_svc_name-Plan --sku P1V3 --location $location --is-linux -o none
 az webapp create -g $rg -n $spoke1_app_svc_name --plan $spoke1_app_svc_name-Plan --container-image-name jelledruyts/inspectorgadget:latest -o none
-appid=$(az webapp show -g $rg -n $spoke1_app_svc_name --query id -o tsv)
-appfqdn=$(az webapp show -g $rg -n $spoke1_app_svc_name --query hostNames[] -o tsv)
+appid=$(az webapp show -g $rg -n $spoke1_app_svc_name --query id -o tsv | tr -d '\r')
+appfqdn=$(az webapp show -g $rg -n $spoke1_app_svc_name --query hostNames[] -o tsv | tr -d '\r')
 
 # app service private endpoint
 echo -e "\e[1;36mCreating Service Endpoint for $spoke1_app_svc_name App Service...\e[0m"
@@ -62,12 +62,12 @@ az webapp vnet-integration add -g $rg -n $spoke1_app_svc_name --vnet $spoke1_vne
 # application gateway
 echo -e "\e[1;36mCreating $spoke1_appgw_name Application Gateway...\e[0m"
 az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method Static --sku Standard -o none
-appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv)
+appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv | tr -d '\r')
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --private-ip-address 10.11.0.10 --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none
-appgwhttpsettings=$(az network application-gateway http-settings list -g $rg --gateway-name $spoke1_appgw_name --query [].name -o tsv)
+appgwhttpsettings=$(az network application-gateway http-settings list -g $rg --gateway-name $spoke1_appgw_name --query [].name -o tsv | tr -d '\r')
 az network application-gateway http-settings update -g $rg --name $appgwhttpsettings --gateway-name $spoke1_appgw_name --host-name $appfqdn --protocol Https --port 443 -o none
-appgwprivip=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query frontendIPConfigurations[0].privateIPAddress -o tsv)
-frontendid=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query frontendIPConfigurations[0].id -o tsv)
+appgwprivip=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query frontendIPConfigurations[0].privateIPAddress -o tsv | tr -d '\r')
+frontendid=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query frontendIPConfigurations[0].id -o tsv | tr -d '\r')
 # associate the listener with private frontend
 echo -e "\e[1;36mAssociating the private frontend $appgwprivip with the http listener on $spoke1_appgw_name Application Gateway...\e[0m"
 az resource update -g $rg -n $spoke1_appgw_name --resource-type "Microsoft.Network/applicationGateways" --set properties.httpListeners[0].properties.frontendIPConfiguration.id=$frontendid -o none
@@ -91,13 +91,13 @@ az network firewall ip-config create -g $rg -n $fw_name-config --firewall-name $
 az network firewall update -g $rg -n $fw_name -o none
 hub_fw_private_ip=$(az network firewall show -g $rg -n $fw_name --query ipConfigurations[0].privateIPAddress --output tsv) && echo "$fw_name private IP address: $hub_fw_private_ip"
 hub_fw_pip=$(az network public-ip show -g $rg -n $fw_name --query ipAddress --output tsv) && echo "$fw_name public IP address: $hub_fw_pip"
-azfwid=$(az network firewall show -g $rg -n $fw_name --query id -o tsv)
+azfwid=$(az network firewall show -g $rg -n $fw_name --query id -o tsv | tr -d '\r')
 
 # Log analytics Workspace
 echo -e "\e[1;36mCreating Log Analytics Workspace....\e[0m"
 law_name=$hub_vnet_name-fw-law-$RANDOM
 az monitor log-analytics workspace create -g $rg -n $law_name -o none
-lawid=$(az monitor log-analytics workspace show -g $rg -n $law_name --query id -o tsv)
+lawid=$(az monitor log-analytics workspace show -g $rg -n $law_name --query id -o tsv | tr -d '\r')
 # reference https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/azfwapplicationrule
 az monitor diagnostic-settings create -n azfwlogs -g $rg --resource $azfwid --workspace $lawid --export-to-resource-specific true --logs '[{"category":"AZFWApplicationRule","Enabled":true}, {"category":"AZFWNetworkRule","Enabled":true}, {"category":"AZFWApplicationRuleAggregation","Enabled":true}, {"category":"AZFWDnsQuery","Enabled":true}, {"category":"AZFWFlowTrace","Enabled":true} , {"category":"AZFWIdpsSignature","Enabled":true}, {"category":"AZFWNatRule","Enabled":true}, {"category":"AZFWFatFlow","Enabled":true}, {"category":"AZFWNatRuleAggregation","Enabled":true}, {"category":"AZFWNetworkRuleAggregation","Enabled":true}, {"category":"AZFWThreatIntel","Enabled":true}]' -o none
 

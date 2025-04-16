@@ -59,7 +59,7 @@ az webapp vnet-integration add -g $rg -n $spoke1_app_svc_name --vnet $spoke1_vne
 # application gateway
 echo -e "\e[1;36mCreating $spoke1_appgw_name Application Gateway...\e[0m"
 az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method Static --sku Standard -o none
-appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv) && echo AppGW public IP: $appgwpip
+appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv | tr -d '\r') && echo AppGW public IP: $appgwpip
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $appfqdn --priority 100 -o none
 appgwhttpsettings=$(az network application-gateway http-settings list -g $rg --gateway-name $spoke1_appgw_name --query [].name -o tsv | tr -d '\r')
 az network application-gateway http-settings update -g $rg --name $appgwhttpsettings --gateway-name $spoke1_appgw_name --host-name-from-backend-pool true --protocol Https --port 443 -o none

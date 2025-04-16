@@ -102,7 +102,7 @@ az network nic create -g $rg -n "$hub_nva_subnet_name" --subnet $hub_nva_subnet_
 az vm create -g $rg -n $hub_nva_subnet_name --image $hub_nva_vm_image --nics "$hub_nva_subnet_name" --os-disk-name $hub_nva_subnet_name --size Standard_B2als_v2 --admin-username $admin_username --generate-ssh-keys -o none
 # hub fw opnsense vm details:
 hub_nva_public_ip=$(az network public-ip show -g $rg -n "$hub_nva_subnet_name" --query 'ipAddress' --output tsv) && echo $hub_nva_subnet_name public ip: $hub_nva_public_ip
-hub_nva_private_ip=$(az network nic show -g $rg -n $hub_nva_subnet_name --query ipConfigurations[].privateIPAddress -o tsv) && echo $hub_nva_subnet_name private IP: $hub_nva_private_ip
+hub_nva_private_ip=$(az network nic show -g $rg -n $hub_nva_subnet_name --query ipConfigurations[].privateIPAddress -o tsv | tr -d '\r') && echo $hub_nva_subnet_name private IP: $hub_nva_private_ip
 
 # opnsense vm boot diagnostics
 echo -e "\e[1;36mEnabling VM boot diagnostics for $hub_nva_subnet_name...\e[0m"
@@ -121,12 +121,12 @@ rm $opnsense_init_file $config_file
 echo -e "\e[1;36mDeploying $spoke1_vnet_name VM...\e[0m"
 az network nic create -g $rg -n $spoke1_vnet_name -l $location --vnet-name $spoke1_vnet_name --subnet $spoke1_vm_subnet_name -o none
 az vm create -g $rg -n $spoke1_vnet_name -l $location --image $vm_image --nics $spoke1_vnet_name --os-disk-name $spoke1_vnet_name --size $vm_size --admin-username $admin_username --admin-password $admin_password --custom-data $cloudinit_file --no-wait
-spoke1_vm_ip=$(az network nic show -g $rg -n $spoke1_vnet_name --query ipConfigurations[0].privateIPAddress -o tsv) && echo $spoke1_vnet_name vm private ip: $spoke1_vm_ip
+spoke1_vm_ip=$(az network nic show -g $rg -n $spoke1_vnet_name --query ipConfigurations[0].privateIPAddress -o tsv | tr -d '\r') && echo $spoke1_vnet_name vm private ip: $spoke1_vm_ip
 
 # application gateway
 echo -e "\e[1;36mCreating $spoke1_appgw_name Application Gateway...\e[0m"
 az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method Static --sku Standard -o none
-appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv) && echo AppGW public IP: $appgwpip
+appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv | tr -d '\r') && echo AppGW public IP: $appgwpip
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none
 
 echo "Try now to access the website through application gateway before routing the traffic to nva: http://$appgwpip"

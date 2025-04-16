@@ -11,8 +11,8 @@ az group create -l $location -n $rg -o none
 echo -e "\e[1;36mCreating $spoke1_app_svc_name App Service...\e[0m"
 az appservice plan create -g $rg -n $spoke1_app_svc_name-Plan --sku P1V3 --location $location --is-linux -o none
 az webapp create -g $rg -n $spoke1_app_svc_name --plan $spoke1_app_svc_name-Plan --container-image-name jelledruyts/inspectorgadget:latest -o none
-appid=$(az webapp show -g $rg -n $spoke1_app_svc_name --query id -o tsv)
-appfqdn=$(az webapp show -g $rg -n $spoke1_app_svc_name --query hostNames[] -o tsv)
+appid=$(az webapp show -g $rg -n $spoke1_app_svc_name --query id -o tsv | tr -d '\r')
+appfqdn=$(az webapp show -g $rg -n $spoke1_app_svc_name --query hostNames[] -o tsv | tr -d '\r')
 
 # front door
 echo -e "\e[1;36mDeploying Azure Front Door..\e[0m"
@@ -20,7 +20,7 @@ az afd profile create -g $rg -n wadafd --sku Premium_AzureFrontDoor -o none
 
 echo -e "\e[1;36mCreating AFD Endpoint..\e[0m"
 az afd endpoint create -g $rg -n wadafdfe --profile-name wadafd --enabled-state Enabled -o none
-afdhostname=$(az afd endpoint show -g $rg -n wadafdfe --profile-name wadafd --query hostName -o tsv)
+afdhostname=$(az afd endpoint show -g $rg -n wadafdfe --profile-name wadafd --query hostName -o tsv | tr -d '\r')
 
 echo -e "\e[1;36mCreating AFD origin group..\e[0m"
 az afd origin-group create -g $rg -n og --profile-name wadafd --probe-request-type GET --probe-protocol Http --probe-interval-in-seconds 60 --probe-path / --sample-size 4 --successful-samples-required 3 --additional-latency-in-milliseconds 50 -o none
