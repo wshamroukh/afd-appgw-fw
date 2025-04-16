@@ -81,14 +81,14 @@ az network public-ip create -g $rg -n $fw_name -l $location --allocation-method 
 az network firewall create -g $rg -n $fw_name -l $location --sku AZFW_VNet --firewall-policy $fw_name-policy -o none
 az network firewall ip-config create -g $rg -n $fw_name-config --firewall-name $fw_name --public-ip-address $fw_name --vnet-name $hub_vnet_name -o none
 az network firewall update -g $rg -n $fw_name -o none
-hub1_fw_private_ip=$(az network firewall show -g $rg -n $fw_name --query ipConfigurations[0].privateIPAddress --output tsv) && echo "$fw_name private IP address: $hub1_fw_private_ip"
-azfwid=$(az network firewall show -g $rg -n $fw_name --query id -o tsv)
+hub1_fw_private_ip=$(az network firewall show -g $rg -n $fw_name --query ipConfigurations[0].privateIPAddress --output tsv | tr -d '\r') && echo "$fw_name private IP address: $hub1_fw_private_ip"
+azfwid=$(az network firewall show -g $rg -n $fw_name --query id -o tsv | tr -d '\r')
 
 # Log analytics Workspace
 echo -e "\e[1;36mCreating Log Analytics Workspace....\e[0m"
 law_name=$hub_vnet_name-fw-law-$RANDOM
 az monitor log-analytics workspace create -g $rg -n $law_name -o none
-lawid=$(az monitor log-analytics workspace show -g $rg -n $law_name --query id -o tsv)
+lawid=$(az monitor log-analytics workspace show -g $rg -n $law_name --query id -o tsv | tr -d '\r')
 # reference https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/azfwapplicationrule
 az monitor diagnostic-settings create -n azfwlogs -g $rg --resource $azfwid --workspace $lawid --export-to-resource-specific true --logs '[{"category":"AZFWApplicationRule","Enabled":true}, {"category":"AZFWNetworkRule","Enabled":true}, {"category":"AZFWApplicationRuleAggregation","Enabled":true}, {"category":"AZFWDnsQuery","Enabled":true}, {"category":"AZFWFlowTrace","Enabled":true} , {"category":"AZFWIdpsSignature","Enabled":true}, {"category":"AZFWNatRule","Enabled":true}, {"category":"AZFWFatFlow","Enabled":true}, {"category":"AZFWNatRuleAggregation","Enabled":true}, {"category":"AZFWNetworkRuleAggregation","Enabled":true}, {"category":"AZFWThreatIntel","Enabled":true}]' -o none
 
