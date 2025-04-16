@@ -20,7 +20,7 @@ spoke1_appgw_name=appgw-$RANDOM
 admin_username=$(whoami)
 admin_password=Test#123#123
 vm_size=Standard_B2ats_v2
-vm_image=$(az vm image list -l $location -p Canonical -s 22_04-lts --all --query "[?offer=='0001-com-ubuntu-server-jammy'].urn" -o tsv | sort -u | tail -n 1) && echo $vm_image
+vm_image=$(az vm image list -l $location -p Canonical -s server --all --query "[?offer=='ubuntu-24_04-lts'].urn" -o tsv | sort -u | tail -n 1) && echo $vm_image
 
 cloudinit_file=~/cloudinit.txt
 cat <<EOF > $cloudinit_file
