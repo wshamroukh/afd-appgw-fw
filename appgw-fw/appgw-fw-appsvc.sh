@@ -39,12 +39,12 @@ az network vnet peering create -g $rg -n $spoke1_vnet_name-to-$hub_vnet_name-pee
 # app service
 echo -e "\e[1;36mCreating $spoke1_app_svc_name App Service...\e[0m"
 az appservice plan create -g $rg -n $spoke1_app_svc_name-Plan --sku P1V3 --location $location --is-linux -o none
-appid=$(az webapp create -g $rg -n $spoke1_app_svc_name --plan $spoke1_app_svc_name-Plan --container-image-name jelledruyts/inspectorgadget:latest --query id -o tsv) && echo App Service ID: $appid
-appfqdn=$(az webapp show -g $rg -n $spoke1_app_svc_name --query hostNames[] -o tsv) && echo App Service FQDN: $appfqdn
+appid=$(az webapp create -g $rg -n $spoke1_app_svc_name --plan $spoke1_app_svc_name-Plan --container-image-name jelledruyts/inspectorgadget:latest --query id -o tsv | tr -d '\r') && echo App Service ID: $appid
+appfqdn=$(az webapp show -g $rg -n $spoke1_app_svc_name --query hostNames[] -o tsv | tr -d '\r') && echo App Service FQDN: $appfqdn
 
 # app service private endpoint
 echo -e "\e[1;36mCreating Service Endpoint for $spoke1_app_svc_name App Service...\e[0m"
-az network private-endpoint create -g $rg -n $spoke1_app_svc_name-pe --nic-name $spoke1_app_svc_name-pe-nic --vnet-name $spoke1_vnet_name --subnet $spoke1_pe_subnet_name --private-connection-resource-id $(echo $appid | tr -d '\r') --group-id sites --connection-name $spoke1_app_svc_name-connection -l $location -o none
+az network private-endpoint create -g $rg -n $spoke1_app_svc_name-pe --nic-name $spoke1_app_svc_name-pe-nic --vnet-name $spoke1_vnet_name --subnet $spoke1_pe_subnet_name --private-connection-resource-id $appid --group-id sites --connection-name $spoke1_app_svc_name-connection -l $location -o none
 
 # configure private dns
 echo -e "\e[1;36mCreating Private DNS Zone for $spoke1_app_svc_name App Service...\e[0m"
@@ -60,8 +60,8 @@ az webapp vnet-integration add -g $rg -n $spoke1_app_svc_name --vnet $spoke1_vne
 echo -e "\e[1;36mCreating $spoke1_appgw_name Application Gateway...\e[0m"
 az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method Static --sku Standard -o none
 appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv) && echo AppGW public IP: $appgwpip
-az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $(echo $appfqdn | tr -d '\r') --priority 100 -o none
-appgwhttpsettings=$(az network application-gateway http-settings list -g $rg --gateway-name $spoke1_appgw_name --query [].name -o tsv)
+az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $appfqdn --priority 100 -o none
+appgwhttpsettings=$(az network application-gateway http-settings list -g $rg --gateway-name $spoke1_appgw_name --query [].name -o tsv | tr -d '\r')
 az network application-gateway http-settings update -g $rg --name $appgwhttpsettings --gateway-name $spoke1_appgw_name --host-name-from-backend-pool true --protocol Https --port 443 -o none
 
 echo "Try now to access the website through application gateway before routing the traffic to azure firewall: http://$appgwpip"
