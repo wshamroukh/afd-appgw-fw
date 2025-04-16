@@ -106,3 +106,6 @@ az network route-table route create -g $rg -n to-$spoke1_appgw_name --address-pr
 az network vnet subnet update -g $rg -n $spoke1_appsvc_subnet_name --vnet-name $spoke1_vnet_name --route-table $spoke1_appsvc_subnet_name -o none
 
 echo "Try now to access the website through application gateway after routing the traffic to azure firewall: http://$appgwpip"
+
+# Cleanup
+# az group delete -g $rg --yes --no-wait -o none
