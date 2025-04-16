@@ -22,7 +22,7 @@ spoke1_app_svc_name=waddahApp-$RANDOM
 
 admin_username=$(whoami)
 admin_password=Test#123#123
-vm_size=Standard_B2ats_v2
+vm_size=Standard_B2als_v2
 
 opnsense_init_file=~/opnsense_init.sh
 cat <<EOF > $opnsense_init_file

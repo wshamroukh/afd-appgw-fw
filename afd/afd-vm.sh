@@ -14,7 +14,7 @@ spoke1_vm_subnet_address=10.11.1.0/24
 
 admin_username=$(whoami)
 admin_password=Test#123#123
-vm_size=Standard_B2ats_v2
+vm_size=Standard_B2als_v2
 vm_image=$(az vm image list -l $location -p Canonical -s server --all --query "[?offer=='ubuntu-24_04-lts'].urn" -o tsv | sort -u | tail -n 1) && echo $vm_image
 
 cloudinit_file=~/cloudinit.txt

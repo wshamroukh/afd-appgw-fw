@@ -16,7 +16,7 @@ spoke1_appgw_name=appgw-$RANDOM
 
 admin_username=$(whoami)
 admin_password=Test#123#123
-vm_size=Standard_B2ats_v2
+vm_size=Standard_B2als_v2
 vm_image=$(az vm image list -l $location -p Canonical -s server --all --query "[?offer=='ubuntu-24_04-lts'].urn" -o tsv | sort -u | tail -n 1) && echo $vm_image
 
 cloudinit_file=~/cloudinit.txt
@@ -53,9 +53,10 @@ az network vnet peering create -g $rg -n $hub_vnet_name-to-$spoke1_vnet_name-pee
 az network vnet peering create -g $rg -n $spoke1_vnet_name-to-$hub_vnet_name-peering --remote-vnet $hub_vnet_name --vnet-name $spoke1_vnet_name --allow-vnet-access true --allow-forwarded-traffic true -o none
 
 # spoke1 vm
+az vm list-sizes --location $location --output table | grep Standard_B2als_v2 && echo -e "\e[1;36mCreating $spoke1_vnet_name VM...\e[0m"
 echo -e "\e[1;36mDeploying $spoke1_vnet_name VM...\e[0m"
 az network nic create -g $rg -n $spoke1_vnet_name -l $location --vnet-name $spoke1_vnet_name --subnet $spoke1_vm_subnet_name -o none
-az vm create -g $rg -n $spoke1_vnet_name -l $location --image $vm_image --nics $spoke1_vnet_name --os-disk-name $spoke1_vnet_name --size $vm_size --admin-username $admin_username --admin-password $admin_password --custom-data $cloudinit_file --no-wait
+az vm create -g $rg -n $spoke1_vnet_name -l $location --image $vm_image --nics $spoke1_vnet_name --os-disk-name $spoke1_vnet_name --size $vm_size --admin-username $admin_username --admin-password $admin_password --custom-data $cloudinit_file --debug
 spoke1_vm_ip=$(az network nic show -g $rg -n $spoke1_vnet_name --query ipConfigurations[0].privateIPAddress -o tsv | tr -d '\r') && echo $spoke1_vnet_name vm private ip: $spoke1_vm_ip
 
 # application gateway
