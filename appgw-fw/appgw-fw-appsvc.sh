@@ -81,7 +81,7 @@ az network public-ip create -g $rg -n $fw_name -l $location --allocation-method 
 az network firewall create -g $rg -n $fw_name -l $location --sku AZFW_VNet --firewall-policy $fw_name-policy -o none
 az network firewall ip-config create -g $rg -n $fw_name-config --firewall-name $fw_name --public-ip-address $fw_name --vnet-name $hub_vnet_name -o none
 az network firewall update -g $rg -n $fw_name -o none
-hub1_fw_private_ip=$(az network firewall show -g $rg -n $fw_name --query ipConfigurations[0].privateIPAddress --output tsv | tr -d '\r') && echo "$fw_name private IP address: $hub1_fw_private_ip"
+hub1_fw_private_ip=$(az network firewall show -g $rg -n $fw_name --query ipConfigurations[0].privateIPAddress -o tsv | tr -d '\r') && echo "$fw_name private IP address: $hub1_fw_private_ip"
 azfwid=$(az network firewall show -g $rg -n $fw_name --query id -o tsv | tr -d '\r')
 
 # Log analytics Workspace
