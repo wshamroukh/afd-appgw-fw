@@ -89,8 +89,8 @@ echo -e "\e[1;36mCreating $fw_name Azure Firewall....\e[0m"
 az network firewall create -g $rg -n $fw_name -l $location --sku AZFW_VNet --firewall-policy $fw_name-policy -o none
 az network firewall ip-config create -g $rg -n $fw_name-config --firewall-name $fw_name --public-ip-address $fw_name --vnet-name $hub_vnet_name -o none
 az network firewall update -g $rg -n $fw_name -o none
-hub_fw_private_ip=$(az network firewall show -g $rg -n $fw_name --query ipConfigurations[0].privateIPAddress --output tsv) && echo "$fw_name private IP address: $hub_fw_private_ip"
-hub_fw_pip=$(az network public-ip show -g $rg -n $fw_name --query ipAddress --output tsv) && echo "$fw_name public IP address: $hub_fw_pip"
+hub_fw_private_ip=$(az network firewall show -g $rg -n $fw_name --query ipConfigurations[0].privateIPAddress -o tsv | tr -d '\r') && echo "$fw_name private IP address: $hub_fw_private_ip"
+hub_fw_pip=$(az network public-ip show -g $rg -n $fw_name --query ipAddress -o tsv | tr -d '\r') && echo "$fw_name public IP address: $hub_fw_pip"
 azfwid=$(az network firewall show -g $rg -n $fw_name --query id -o tsv | tr -d '\r')
 
 # Log analytics Workspace
