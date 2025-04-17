@@ -65,6 +65,7 @@ appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipA
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none
 
 echo "Try now to access the website through application gateway before routing the traffic to azure firewall: http://$appgwpip"
+
 # clean up cloudinit file
 rm $cloudinit_file
 
@@ -78,7 +79,6 @@ az network firewall policy rule-collection-group create -g $rg -n $hub_vnet_name
 az network firewall policy rule-collection-group collection add-filter-collection -g $rg -n $hub_vnet_name-NetworkRuleCollection --policy-name $fw_name-policy --rcg-name $hub_vnet_name-RuleCollectionGroup --action Allow --rule-name appgw-to-vm-traffic --collection-priority 500 --rule-type NetworkRule --source-addresses $spoke1_appgw_subnet_address --ip-protocols any --destination-addresses $spoke1_vm_subnet_address --destination-ports '*' -o none
 
 # hub1 azure firewall
-
 echo -e "\e[1;36mCreating $fw_name Azure Firewall....\e[0m"
 az network public-ip create -g $rg -n $fw_name -l $location --allocation-method Static --sku Standard -o none
 az network firewall create -g $rg -n $fw_name -l $location --sku AZFW_VNet --firewall-policy $fw_name-policy -o none
