@@ -24,7 +24,7 @@ admin_username=$(whoami)
 admin_password=Test#123#123
 vm_size=Standard_B2als_v2
 
-opnsense_init_file=~/opnsense_init.sh
+opnsense_init_file=opnsense_init.sh
 cat <<EOF > $opnsense_init_file
 #!/usr/local/bin/bash
 echo $admin_password | sudo -S pkg update
