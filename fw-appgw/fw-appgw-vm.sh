@@ -103,5 +103,5 @@ az monitor diagnostic-settings create -n azfwlogs -g $rg --resource $azfwid --wo
 
 echo "Try now to access the website through azure firewall: http://$hub_fw_pip"
 
-
-
+# Cleanup
+# az group delete -g $rg --yes --no-wait -o none
