@@ -17,7 +17,7 @@ admin_password=Test#123#123
 vm_size=Standard_B2als_v2
 
 
-cloudinit_file=~/cloudinit.txt
+cloudinit_file=cloudinit.txt
 cat <<EOF > $cloudinit_file
 #cloud-config
 runcmd:
