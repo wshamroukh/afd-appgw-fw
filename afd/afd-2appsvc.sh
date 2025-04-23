@@ -33,14 +33,14 @@ echo -e "\e[1;36mCreating AFD origin group ($afdname-og)..\e[0m"
 az afd origin-group create -g $rg -n $afdname-og --profile-name $afdname-profile --probe-request-type GET --probe-protocol Http --probe-interval-in-seconds 60 --probe-path / --sample-size 4 --successful-samples-required 3 --additional-latency-in-milliseconds 50 -o none
 
 echo -e "\e[1;36mAdding AFD orgin to the $app1_svc_name app service..\e[0m"
-az afd origin create -g $rg --host-name $app1fqdn --origin-host-header $app1fqdn --origin-group-name $afdname-og --profile-name $afdname-profile --origin-name app1 --priority 1 --enabled-state Enabled --http-port 80 --https-port 443 --weight 2 --enable-private-link true --private-link-location $location1 --private-link-resource $app1id --private-link-request-message "Please approve Private Endpoint for AFD" --private-link-sub-resource-type sites
-pe1id=$(az network private-endpoint-connection list --name $app1_svc_name -g $rg --type Microsoft.Web/sites --query [].id -o tsv | sort -u | tail -n 1)
+az afd origin create -g $rg --host-name $app1fqdn --origin-host-header $app1fqdn --origin-group-name $afdname-og --profile-name $afdname-profile --origin-name app1 --priority 1 --enabled-state Enabled --http-port 80 --https-port 443 --weight 2 --enable-private-link true --private-link-location $location1 --private-link-resource $app1id --private-link-request-message "Please approve Private Endpoint for AFD" --private-link-sub-resource-type sites -o none
+pe1id=$(az network private-endpoint-connection list --name $app1_svc_name -g $rg --type Microsoft.Web/sites --query [].id -o tsv | tr -d '\r')
 echo -e "\e[1;36mApproving the Private Link connection on the $app1_svc_name..\e[0m"
 az network private-endpoint-connection approve --id $pe1id --query properties.privateLinkServiceConnectionState.status
 
 echo -e "\e[1;36mAdding AFD orgin to the $app2_svc_name app service..\e[0m"
-az afd origin create -g $rg --host-name $app2fqdn --origin-host-header $app2fqdn --origin-group-name $afdname-og --profile-name $afdname-profile --origin-name app2 --priority 1 --enabled-state Enabled --http-port 80 --https-port 443 --weight 2 --enable-private-link true --private-link-location $location2 --private-link-resource $app2id --private-link-request-message "Please approve Private Endpoint for AFD" --private-link-sub-resource-type sites
-pe2id=$(az network private-endpoint-connection list --name $app2_svc_name -g $rg --type Microsoft.Web/sites --query [].id -o tsv | sort -u | tail -n 1)
+az afd origin create -g $rg --host-name $app2fqdn --origin-host-header $app2fqdn --origin-group-name $afdname-og --profile-name $afdname-profile --origin-name app2 --priority 1 --enabled-state Enabled --http-port 80 --https-port 443 --weight 2 --enable-private-link true --private-link-location $location2 --private-link-resource $app2id --private-link-request-message "Please approve Private Endpoint for AFD" --private-link-sub-resource-type sites -o none
+pe2id=$(az network private-endpoint-connection list --name $app2_svc_name -g $rg --type Microsoft.Web/sites --query [].id -o tsv | tr -d '\r')
 echo -e "\e[1;36mApproving the Private Link connection on the $app2_svc_name..\e[0m"
 az network private-endpoint-connection approve --id $pe2id --query properties.privateLinkServiceConnectionState.status
 
@@ -51,3 +51,6 @@ echo -e "\e[1;36mCreating AFD routing rule..\e[0m"
 az afd route create -g $rg --profile-name $afdname-profile --endpoint-name $afdname-pe --forwarding-protocol MatchRequest --route-name route --https-redirect Enabled --origin-group $afdname-og --supported-protocols Http Https --link-to-default-domain Enabled -o none
 
 echo "Access the website through AFD: https://$afdhostname"
+
+# Cleanup
+# az group delete -g $rg --yes --no-wait -o none
