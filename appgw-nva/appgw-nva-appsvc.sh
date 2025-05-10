@@ -33,7 +33,6 @@ sed 's/#PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config > /tmp/ss
 sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config_tmp
 sudo mv /tmp/sshd_config /etc/ssh/sshd_config
 sudo /etc/rc.d/sshd restart
-echo -e "$admin_password\n$admin_password" | sudo passwd root
 fetch https://raw.githubusercontent.com/opnsense/update/master/src/bootstrap/opnsense-bootstrap.sh.in
 sed 's/reboot/#reboot/' opnsense-bootstrap.sh.in >opnsense-bootstrap.sh.in.tmp
 mv opnsense-bootstrap.sh.in.tmp opnsense-bootstrap.sh.in
@@ -43,15 +42,12 @@ sudo chmod +x opnsense-bootstrap.sh.in
 sudo sh ~/opnsense-bootstrap.sh.in -y -r 25.1
 sudo cp ~/config.xml /usr/local/etc/config.xml
 sudo pkg upgrade
-sudo pkg install -y bash git
+sudo pkg install -y bash git py311-setuptools-63.1.0_3
 sudo ln -s /usr/local/bin/python3.11 /usr/local/bin/python
-git clone https://github.com/Azure/WALinuxAgent.git
+git -c http.sslVerify=false clone https://github.com/Azure/WALinuxAgent.git
 cd ~/WALinuxAgent/
-git checkout v2.9.1.1
-sudo python setup.py install
-sudo ln -sf /usr/local/sbin/waagent /usr/sbin/waagent
-sudo service waagent start
-sudo service waagent status
+git checkout v2.13.1.1
+sudo python setup.py install --register-service --force
 sudo reboot
 EOF
 
