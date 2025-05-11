@@ -5,7 +5,7 @@ hub_vnet_name=hub
 hub_vnet_address=10.1.0.0/16
 hub_nva_subnet_name=hub-nva
 hub_nva_subnet_address=10.1.0.0/24
-hub_nva_vm_image=$(az vm image list -l $location -p thefreebsdfoundation --sku 14_1-release-zfs --all --query "[?offer=='freebsd-14_1'].urn" -o tsv | sort -u | tail -n 1) && echo $hub_nva_vm_image
+hub_nva_vm_image=$(az vm image list -l $location -p thefreebsdfoundation --sku 14_2-release-zfs --all --query "[?offer=='freebsd-14_2'].urn" -o tsv | tr -d '\r') && echo $hub_nva_vm_image
 az vm image terms accept --urn $hub_nva_vm_image -o none
 
 spoke1_vnet_name=spoke1
