@@ -112,13 +112,14 @@ ssh -o StrictHostKeyChecking=no root@$hub_nva_public_ip "sudo reboot"
 rm $cloudinit_file
 
 # front door
+afdname=wadafd$RANDOM
 echo -e "\e[1;36mDeploying Azure Front Door..\e[0m"
-az afd profile create -g $rg -n wadafd --sku Premium_AzureFrontDoor -o none
-az afd endpoint create -g $rg -n wadafdfe --profile-name wadafd --enabled-state Enabled -o none
-afdhostname=$(az afd endpoint show -g $rg -n wadafdfe --profile-name wadafd --query hostName -o tsv | tr -d '\r')
-az afd origin-group create -g $rg -n og --profile-name wadafd --probe-request-type GET --probe-protocol Http --probe-interval-in-seconds 60 --probe-path / --sample-size 4 --successful-samples-required 3 --additional-latency-in-milliseconds 50 -o none
-az afd origin create -g $rg --host-name $appgwpip --origin-host-header $appgwpip --origin-group-name og --profile-name wadafd --origin-name appgw --priority 1 --enabled-state Enabled --http-port 80 --https-port 443 --weight 1000 -o none
-az afd route create -g $rg --profile-name wadafd --endpoint-name wadafdfe --forwarding-protocol HttpOnly --route-name route --https-redirect Enabled --origin-group og --supported-protocols Http Https --link-to-default-domain Enabled -o none
+az afd profile create -g $rg -n $afdname --sku Premium_AzureFrontDoor -o none
+az afd endpoint create -g $rg -n ${afdname}-fe --profile-name $afdname --enabled-state Enabled -o none
+afdhostname=$(az afd endpoint show -g $rg -n ${afdname}-fe --profile-name $afdname --query hostName -o tsv | tr -d '\r')
+az afd origin-group create -g $rg -n og --profile-name $afdname --probe-request-type GET --probe-protocol Http --probe-interval-in-seconds 60 --probe-path / --sample-size 4 --successful-samples-required 3 --additional-latency-in-milliseconds 50 -o none
+az afd origin create -g $rg --host-name $appgwpip --origin-host-header $appgwpip --origin-group-name og --profile-name $afdname --origin-name appgw --priority 1 --enabled-state Enabled --http-port 80 --https-port 443 --weight 1000 -o none
+az afd route create -g $rg --profile-name $afdname --endpoint-name ${afdname}-fe --forwarding-protocol HttpOnly --route-name route --https-redirect Enabled --origin-group og --supported-protocols Http Https --link-to-default-domain Enabled -o none
 
 # AppGW UDR
 echo -e "\e[1;36mCreating $spoke1_appgw_name UDR....\e[0m"
