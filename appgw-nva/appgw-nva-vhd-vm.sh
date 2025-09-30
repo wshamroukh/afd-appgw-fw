@@ -15,7 +15,7 @@ spoke1_appgw_subnet_address=10.11.0.0/24
 spoke1_vm_subnet_name=vm
 spoke1_vm_subnet_address=10.11.1.0/24
 
-spoke1_appgw_name=appgw-$RANDOM
+spoke1_appgw_name=appgw
 
 admin_username=$(whoami)
 admin_password=Test#123#123
@@ -97,10 +97,19 @@ appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipA
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none
 
 echo "Try now to access the website through application gateway before routing the traffic to nva: http://$appgwpip"
+
+
+# Download config files
+opnsense_config=~/appgw-nva-vm.xml
+curl -o $opnsense_config https://raw.githubusercontent.com/wshamroukh/afd-appgw-fw/refs/heads/main/appgw-nva/appgw-nva-vm.xml
+# Copying config files to site1 pfsense
+echo -e "\e[1;36mCopying configuration files to $site1_vnet_name-fw and installing opnsense firewall...\e[0m"
+scp -o StrictHostKeyChecking=no $opnsense_config root@$hub_nva_public_ip:/conf/config.xml
+echo -e "\e[1;36mRebooting $hub_nva_subnet_name VM after importing the config file...\e[0m"
+ssh -o StrictHostKeyChecking=no root@$hub_nva_public_ip "sudo reboot"
+
 # clean up cloudinit file
 rm $cloudinit_file
-
-echo "Access nva management portal via https://$hub_nva_public_ip username: root, passwd: opnsense - it is highly recommended to change the password as soon as you login"
 
 # AppGW UDR
 echo -e "\e[1;36mCreating $spoke1_appgw_name UDR....\e[0m"
