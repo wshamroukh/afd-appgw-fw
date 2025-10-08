@@ -60,12 +60,25 @@ spoke1_vm_ip=$(az network nic show -g $rg -n $spoke1_vnet_name --query ipConfigu
 # clean up cloudinit file
 rm $cloudinit_file
 
-# front door
-echo -e "\e[1;36mDeploying Azure Front Door..\e[0m"
+# front door profile
+echo -e "\e[1;36mDeploying Azure Front Door Profile..\e[0m"
 az afd profile create -g $rg -n wadafd --sku Premium_AzureFrontDoor -o none
+
+# front door endpoint
+echo -e "\e[1;36mDeploying Azure Front Door Endpoint..\e[0m"
 az afd endpoint create -g $rg -n wadafdfe --profile-name wadafd --enabled-state Enabled -o none
 afdhostname=$(az afd endpoint show -g $rg -n wadafdfe --profile-name wadafd --query hostName -o tsv | tr -d '\r')
+
+# front door origin group
+echo -e "\e[1;36mDeploying Azure Front Door Origin Group..\e[0m"
 az afd origin-group create -g $rg -n og --profile-name wadafd --probe-request-type GET --probe-protocol Http --probe-interval-in-seconds 60 --probe-path / --sample-size 4 --successful-samples-required 3 --additional-latency-in-milliseconds 50 -o none
+
+# front door origin
+echo -e "\e[1;36mDeploying Azure Front Door Origin..\e[0m"
 az afd origin create -g $rg --host-name $vmip --origin-host-header $vmip --origin-group-name og --profile-name wadafd --origin-name vm1 --priority 1 --enabled-state Enabled --http-port 80 --https-port 443 --weight 1000 -o none
+
+# front door route
+echo -e "\e[1;36mCreating a route rule on azure front door..\
 az afd route create --resource-group $rg --profile-name wadafd --endpoint-name wadafdfe --forwarding-protocol HttpOnly --route-name route --https-redirect Enabled --origin-group og --supported-protocols Http Https --link-to-default-domain Enabled -o none
-echo "Access the website through AFD: http://$afdhostname"
+
+echo "Access the website through AFD - it usually takes a couple of minutes to become accessible: http://$afdhostname"
