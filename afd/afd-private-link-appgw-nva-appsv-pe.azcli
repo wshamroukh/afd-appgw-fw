@@ -1,0 +1,186 @@
+rg=afd-private-link-appgw-nva-appsvc-pe
+location=centralindia
+
+hub_vnet_name=hub
+hub_vnet_address=10.1.0.0/16
+hub_nva_subnet_name=hub-nva
+hub_nva_subnet_address=10.1.0.0/24
+vhdUri=https://wadvhds.blob.core.windows.net/vhds/opnsense.vhd
+storageType=Premium_LRS
+
+spoke1_vnet_name=spoke1
+spoke1_vnet_address=10.11.0.0/16
+spoke1_appgw_subnet_name=appgw
+spoke1_appgw_subnet_address=10.11.0.0/24
+spoke1_appgw_pl_subnet_name=appgw-pl
+spoke1_appgw_pl_subnet_address=10.11.2.0/24
+spoke1_appsvcpe_subnet_name=appsvc-pe
+spoke1_appsvcpe_subnet_address=10.11.1.0/29
+spoke1_appsvc_vnetint_subnet_name=appsvc-vnetint
+spoke1_appsvc_vnetint_subnet_address=10.11.1.64/26
+
+spoke1_appgw_name=appgw
+spoke1_app_svc_name=waddahApp-$RANDOM
+
+admin_username=$(whoami)
+admin_password=Test#123#123
+vm_size=Standard_B2als_v2
+
+
+# Resource Groups
+echo -e "\e[1;36mCreating $rg Resource Group...\e[0m"
+az group create -l $location -n $rg -o none
+
+# hub vnet
+echo -e "\e[1;36mCreating $hub_vnet_name VNet...\e[0m"
+az network vnet create -g $rg -n $hub_vnet_name -l $location --address-prefixes $hub_vnet_address --subnet-name $hub_nva_subnet_name --subnet-prefixes $hub_nva_subnet_address -o none
+
+# hub fw opnsense vm
+# create a managed disk from a vhd
+echo -e "\e[1;36mCreating $hub_nva_subnet_name managed disk from a vhd...\e[0m"
+az disk create -g $rg -n "$hub_nva_subnet_name" --sku $storageType --location $location --size-gb 30 --source $vhdUri --os-type Linux -o none
+
+#Get the resource Id of the managed disk
+diskId=$(az disk show -n $hub_nva_subnet_name -g $rg --query [id] -o tsv | tr -d '\r')
+
+echo -e "\e[1;36mCreating $hub_nva_subnet_name VM...\e[0m"
+az network public-ip create -g $rg -n "$hub_nva_subnet_name" -l $location --allocation-method Static --sku Basic -o none
+az network nic create -g $rg -n "$hub_nva_subnet_name-wan" --subnet $hub_nva_subnet_name --vnet-name $hub_vnet_name --ip-forwarding true --private-ip-address 10.1.0.250 --public-ip-address "$hub_nva_subnet_name" -o none
+az vm create -g $rg -n $hub_nva_subnet_name --nics "$hub_nva_subnet_name-wan" --size Standard_B2als_v2 --attach-os-disk $diskId --os-type linux --no-wait -o none
+# hub fw opnsense vm details:
+hub_nva_public_ip=$(az network public-ip show -g $rg -n "$hub_nva_subnet_name" --query 'ipAddress' -o tsv | tr -d '\r') && echo $hub_nva_subnet_name public ip: $hub_nva_public_ip
+hub_nva_private_ip=$(az network nic show -g $rg -n $hub_nva_subnet_name-wan --query ipConfigurations[].privateIPAddress -o tsv | tr -d '\r') && echo $hub_nva_subnet_name wan private IP: $hub_nva_private_ip
+
+# spoke1 vnet
+echo -e "\e[1;36mCreating $spoke1_vnet_name VNet...\e[0m"
+az network vnet create -g $rg -n $spoke1_vnet_name -l $location --address-prefixes $spoke1_vnet_address --subnet-name $spoke1_appgw_subnet_name --subnet-prefixes $spoke1_appgw_subnet_address -o none
+az network vnet subnet create -g $rg -n $spoke1_appgw_pl_subnet_name --address-prefixes $spoke1_appgw_pl_subnet_address --vnet-name $spoke1_vnet_name -o none
+az network vnet subnet create -g $rg -n $spoke1_appsvcpe_subnet_name --address-prefixes $spoke1_appsvcpe_subnet_address --vnet-name $spoke1_vnet_name -o none
+az network vnet subnet create -g $rg -n $spoke1_appsvc_vnetint_subnet_name --address-prefixes $spoke1_appsvc_vnetint_subnet_address --vnet-name $spoke1_vnet_name -o none
+appgwplid=$(az network vnet subnet show -g $rg -n $spoke1_appgw_pl_subnet_name --vnet-name $spoke1_vnet_name --query id -o tsv | tr -d '\r')
+
+# VNet Peering between hub and spoke1
+echo -e "\e[1;36mCreating VNet peering between $hub_vnet_name and $spoke1_vnet_name...\e[0m"
+az network vnet peering create -g $rg -n $hub_vnet_name-to-$spoke1_vnet_name-peering --remote-vnet $spoke1_vnet_name --vnet-name $hub_vnet_name --allow-vnet-access true --allow-forwarded-traffic true -o none
+az network vnet peering create -g $rg -n $spoke1_vnet_name-to-$hub_vnet_name-peering --remote-vnet $hub_vnet_name --vnet-name $spoke1_vnet_name --allow-vnet-access true --allow-forwarded-traffic true -o none
+
+# hub fw opnsense nsg
+echo -e "\e[1;36mCreating $hub_nva_subnet_name-nsg NSG...\e[0m"
+myip=$(curl -s4 https://ifconfig.co/)
+az network nsg create -g $rg -n $hub_nva_subnet_name-nsg -l $location -o none
+az network nsg rule create -g $rg -n AllowSSH --nsg-name $hub_nva_subnet_name-nsg --priority 1000 --access Allow --description AllowSSH --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 22 --source-address-prefixes $myip --source-port-ranges '*' -o none
+az network nsg rule create -g $rg -n AllowHTTP --nsg-name $hub_nva_subnet_name-nsg --priority 1010 --access Allow --description AllowHTTP --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 80 --source-address-prefixes $myip --source-port-ranges '*' -o none
+az network nsg rule create -g $rg -n AllowHTTPS --nsg-name $hub_nva_subnet_name-nsg --priority 1020 --access Allow --description AllowHTTPS --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 443 --source-address-prefixes $myip --source-port-ranges '*' -o none
+az network vnet subnet update -g $rg -n $hub_nva_subnet_name --vnet-name $hub_vnet_name --nsg $hub_nva_subnet_name-nsg -o none
+
+# app service
+echo -e "\e[1;36mCreating $spoke1_app_svc_name App Service...\e[0m"
+az appservice plan create -g $rg -n $spoke1_app_svc_name-Plan --sku P1V3 --location $location --is-linux -o none
+az webapp create -g $rg -n $spoke1_app_svc_name --plan $spoke1_app_svc_name-Plan --container-image-name jelledruyts/inspectorgadget:latest -o none
+appid=$(az webapp show -g $rg -n $spoke1_app_svc_name --query id -o tsv | tr -d '\r')
+appfqdn=$(az webapp show -g $rg -n $spoke1_app_svc_name --query hostNames[] -o tsv | tr -d '\r')
+
+# app service private endpoint
+echo -e "\e[1;36mCreating Service Endpoint for $spoke1_app_svc_name App Service...\e[0m"
+az network private-endpoint create -g $rg -n $spoke1_app_svc_name-pe --nic-name $spoke1_app_svc_name-pe-nic --vnet-name $spoke1_vnet_name --subnet $spoke1_appsvcpe_subnet_name --private-connection-resource-id $appid --group-id sites --connection-name $spoke1_app_svc_name-connection -l $location -o none
+appsvpenic_ip=$(az network nic show -g $rg -n $spoke1_app_svc_name-pe-nic --query ipConfigurations[0].privateIPAddress -o tsv | tr -d '\r') && echo $spoke1_app_svc_name Private Endpoint IP: $appsvpenic_ip
+
+# configure private dns
+echo -e "\e[1;36mCreating Private DNS Zone for $spoke1_app_svc_name App Service...\e[0m"
+az network private-dns zone create -g $rg -n "privatelink.azurewebsites.net" -o none
+az network private-dns link vnet create -g $rg --zone-name "privatelink.azurewebsites.net" --name dns-link --virtual-network $spoke1_vnet_name --registration-enabled false -o none
+az network private-endpoint dns-zone-group create -g $rg --endpoint-name $spoke1_app_svc_name-pe --name zone-group --private-dns-zone "privatelink.azurewebsites.net" --zone-name webapp -o none
+
+# app service vnet integration:
+echo -e "\e[1;36mEnable VNet integration on $spoke1_app_svc_name App Service...\e[0m"
+az webapp vnet-integration add -g $rg -n $spoke1_app_svc_name --vnet $spoke1_vnet_name --subnet $spoke1_appsvc_vnetint_subnet_name -o none
+
+# Download config files
+opnsense_config=~/appgw-nva-vm.xml
+curl -o $opnsense_config https://raw.githubusercontent.com/wshamroukh/afd-appgw-fw/refs/heads/main/appgw-nva/appgw-nva-vm.xml
+# Copying config files to pfsense
+echo -e "\e[1;36mCopying configuration files to $hub_nva_subnet_name VM and installing opnsense firewall...\e[0m"
+scp -o StrictHostKeyChecking=no $opnsense_config root@$hub_nva_public_ip:/conf/config.xml
+echo -e "\e[1;36mRebooting $hub_nva_subnet_name VM after importing the config file...\e[0m"
+ssh -o StrictHostKeyChecking=no root@$hub_nva_public_ip "sudo reboot"
+
+# application gateway
+echo -e "\e[1;36mCreating $spoke1_appgw_name Application Gateway...\e[0m"
+az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method Static --sku Standard -o none
+appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv | tr -d '\r') && echo AppGW public IP: $appgwpip
+az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --frontend-port 80 --subnet $spoke1_appgw_subnet_name --servers $appfqdn --http-settings-protocol Https --http-settings-port 443 --priority 100 -o none
+az network application-gateway http-settings update -g $rg --gateway-name $spoke1_appgw_name -n appGatewayBackendHttpSettings --port 443 --protocol Https --host-name-from-backend-pool true -o none
+appgwid=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query id -o tsv | tr -d '\r')
+
+echo -e "\e[1;32mTry to access the website through application gateway http://$appgwpip...\e[0m"
+
+# Disable Private Link Service Network Policies on the appgw private link subnet
+echo -e "\e[1;36mDisabling Private Link Service Network Policies on $spoke1_appgw_pl_subnet_name subnet...\e[0m"
+az network vnet subnet update -g $rg -n $spoke1_appgw_pl_subnet_name --vnet-name $spoke1_vnet_name --private-link-service-network-policies Disabled -o none
+# Get the frontend IP of application gateway
+echo -e "\e[1;36mGetting the frontend IP of application gateway to create a private link configuration...\e[0m"
+appgwfeip=$(az network application-gateway frontend-ip list -g $rg --gateway-name $spoke1_appgw_name --query [].name -o tsv | tr -d '\r')
+# Create a Private Link configuraion and associate with the frontend IP of application
+echo -e "\e[1;36mAdding a Private Link on the application gateway...\e[0m"
+az network application-gateway private-link add -g $rg -n privateLinkConfig01 --frontend-ip $appgwfeip --gateway-name $spoke1_appgw_name --subnet $spoke1_appgw_pl_subnet_name -o none
+
+# front door
+afdname=wadafd$RANDOM
+echo -e "\e[1;36mCreating Azure Front Door profile..\e[0m"
+az afd profile create -g $rg -n $afdname --sku Premium_AzureFrontDoor -o none
+echo -e "\e[1;36mCreating Azure Front Door endpoint..\e[0m"
+az afd endpoint create -g $rg -n ${afdname}-fe --profile-name $afdname --enabled-state Enabled -o none
+echo -e "\e[1;36mGetting Azure Front Door endpoint hostname..\e[0m"
+afdhostname=$(az afd endpoint show -g $rg -n ${afdname}-fe --profile-name $afdname --query hostName -o tsv | tr -d '\r')
+echo -e "\e[1;36mCreating an origin group in Front door..\e[0m"
+az afd origin-group create -g $rg -n og --profile-name $afdname --probe-request-type GET --probe-protocol Http --probe-interval-in-seconds 60 --probe-path / --sample-size 4 --successful-samples-required 3 --additional-latency-in-milliseconds 50 -o none
+echo -e "\e[1;36mAdding application gateway as an origin in Front door with private endpoint enabled..\e[0m"
+az afd origin create -g $rg --host-name $appgwpip --origin-host-header $appgwpip --enable-private-link true --private-link-request-message "Please approve private link" --private-link-location $location --private-link-resource $appgwid --private-link-sub-resource-type $appgwfeip --origin-group-name og --profile-name $afdname --origin-name appgw --priority 1 --enabled-state Enabled --http-port 80 --https-port 443 --weight 1000 -o none
+
+# private endpoint connection ID
+echo -e "\e[1;36mGetting private endpoint connection ID on the application gateway..\e[0m"
+privendpoint=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query privateEndpointConnections[0].id -o tsv | tr -d '\r')
+# approve the private endpoint connection
+echo -e "\e[1;36mApproving the private endpoint connection on the application gateway.\e[0m"
+az network private-endpoint-connection approve --id $privendpoint --description "Approved" -o none
+# add route
+echo -e "\e[1;36mCreating a route rule on azure front door..\e[0m"
+az afd route create -g $rg --profile-name $afdname --endpoint-name ${afdname}-fe --forwarding-protocol HttpOnly --route-name route --https-redirect Enabled --origin-group og --supported-protocols Http Https --link-to-default-domain Enabled -o none
+
+echo -e "\e[1;31mTry now to access the website directly - you should not be able to access it: http://$appfqdn\e[0m"
+
+echo -e "\e[1;32mTry now to access the website through application gateway before applying NSG on appgw subnet - you should be able to access it: http://$appgwpip\e[0m"
+
+echo -e "\e[1;32mAccess the website through Azure Front Door and confirm it is still accessible through the following link: http://$afdhostname\e[0m"
+
+# AppGW UDR
+echo -e "\e[1;36mCreating $spoke1_appgw_name UDR to send the traffic destined to VM through NVA....\e[0m"
+az network route-table create -g $rg -n $spoke1_appgw_name -l $location --disable-bgp-route-propagation false -o none
+az network route-table route create -g $rg -n to-$spoke1_appsvcpe_subnet_name --address-prefix $spoke1_appsvcpe_subnet_address --next-hop-type VirtualAppliance --route-table-name $spoke1_appgw_name --next-hop-ip-address $hub_nva_private_ip -o none
+az network vnet subnet update -g $rg -n $spoke1_appgw_subnet_name --vnet-name $spoke1_vnet_name --route-table $spoke1_appgw_name -o none
+
+# VM UDR
+echo -e "\e[1;36mCreating $spoke1_appsvc_vnetint_subnet_name UDR to send the traffic destined to AppGW through NVA....\e[0m"
+az network route-table create -g $rg -n $spoke1_appsvc_vnetint_subnet_name -l $location --disable-bgp-route-propagation false -o none
+az network route-table route create -g $rg -n to-$spoke1_appgw_name --address-prefix $spoke1_appgw_subnet_address --next-hop-type VirtualAppliance --route-table-name $spoke1_appsvc_vnetint_subnet_name --next-hop-ip-address $hub_nva_private_ip -o none
+az network vnet subnet update -g $rg -n $spoke1_appsvc_vnetint_subnet_name --vnet-name $spoke1_vnet_name --route-table $spoke1_appsvc_vnetint_subnet_name -o none
+
+echo -e "\e[1;32mTry now to access the website through application gateway after routing the traffic to nva: http://$appgwpip\e[0m"
+
+echo -e "\e[1;32mNow access the website through Azure Front Door: http://$afdhostname\e[0m"
+
+# Create a NSG on the appgw subnet to allow traffic from AFD only
+echo -e "\e[1;36mCreating $spoke1_appgw_subnet_name-nsg NSG to allow only front door to access application gateway...\e[0m"
+az network nsg create -g $rg -n $spoke1_appgw_subnet_name-nsg -l $location -o none
+az network nsg rule create -g $rg -n AllowAFD --nsg-name $spoke1_appgw_subnet_name-nsg --priority 1000 --access Allow --description AllowAFD --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 80 443 --source-address-prefixes AzureFrontDoor.Backend --source-port-ranges '*' -o none
+az network nsg rule create -g $rg -n AllowVNet --nsg-name $spoke1_appgw_subnet_name-nsg --priority 2000 --access Allow --description AllowInfrastructure --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges '65200-65535' --source-address-prefixes GatewayManager --source-port-ranges '*' -o none
+az network vnet subnet update -g $rg -n $spoke1_appgw_subnet_name --vnet-name $spoke1_vnet_name --nsg $spoke1_appgw_subnet_name-nsg -o none
+
+echo -e "\e[1;32mTry now to access the website through application gateway after applying NSG on appgw subnet - you should not be able to access it: http://$appgwpip\e[0m"
+
+echo -e "\e[1;32mAccess the website through Azure Front Door and confirm it is still accessible through the following link: http://$afdhostname\e[0m"
+
+echo -e "\e[1;31mCheck NVA for logs: http://$hub_nva_public_ip username: root, passwd: opnsense - it is highly recommended to change the password as soon as you login\e[0m"
+
+# Cleanup
+# az group delete -g $rg --yes --no-wait -o none
