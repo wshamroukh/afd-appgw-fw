@@ -114,11 +114,16 @@ rm $cloudinit_file
 # front door
 afdname=wadafd$RANDOM
 echo -e "\e[1;36mDeploying Azure Front Door..\e[0m"
+echo -e "\e[1;36mDeploying Azure Front Door Profile $afdname..\e[0m"
 az afd profile create -g $rg -n $afdname --sku Premium_AzureFrontDoor -o none
+echo -e "\e[1;36mDeploying Azure Front Door endpoint ${afdname}-fe..\e[0m"
 az afd endpoint create -g $rg -n ${afdname}-fe --profile-name $afdname --enabled-state Enabled -o none
 afdhostname=$(az afd endpoint show -g $rg -n ${afdname}-fe --profile-name $afdname --query hostName -o tsv | tr -d '\r')
+echo -e "\e[1;36mDeploying Azure Front Door origin group..\e[0m"
 az afd origin-group create -g $rg -n og --profile-name $afdname --probe-request-type GET --probe-protocol Http --probe-interval-in-seconds 60 --probe-path / --sample-size 4 --successful-samples-required 3 --additional-latency-in-milliseconds 50 -o none
+echo -e "\e[1;36mDeploying Azure Front Door origin..\e[0m"
 az afd origin create -g $rg --host-name $appgwpip --origin-host-header $appgwpip --origin-group-name og --profile-name $afdname --origin-name appgw --priority 1 --enabled-state Enabled --http-port 80 --https-port 443 --weight 1000 -o none
+echo -e "\e[1;36mDeploying Azure Front Door route rule..\e[0m"
 az afd route create -g $rg --profile-name $afdname --endpoint-name ${afdname}-fe --forwarding-protocol HttpOnly --route-name route --https-redirect Enabled --origin-group og --supported-protocols Http Https --link-to-default-domain Enabled -o none
 
 # AppGW UDR
@@ -137,7 +142,7 @@ az network vnet subnet update -g $rg -n $spoke1_vm_subnet_name --vnet-name $spok
 # create a LAN rule in opnsense to route traffic from appgw subnet to vm subnet
 echo "Try now to access the website through application gateway after routing the traffic to nva: http://$appgwpip"
 
-echo "Access the website through Azure Front Door: http://$afdhostname"
+echo "Access the website through Azure Front Door - this may take time: http://$afdhostname"
 
 # Cleanup
 # az group delete -g $rg --yes --no-wait -o none
