@@ -96,8 +96,16 @@ az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method 
 appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv | tr -d '\r') && echo AppGW public IP: $appgwpip
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none
 
-echo "Try now to access the website through application gateway before routing the traffic to nva: http://$appgwpip"
+# spoke appgw nsg
+echo -e "\e[1;36mCreating $spoke1_appgw_subnet_name-nsg NSG...\e[0m"
+myip=$(curl -s4 https://ifconfig.co/)
+az network nsg create -g $rg -n $spoke1_appgw_subnet_name-nsg -l $location -o none
+az network nsg rule create -g $rg -n AllowInfraPorts --nsg-name $spoke1_appgw_subnet_name-nsg --priority 1000 --access Allow --description AllowInfraPorts --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 65200-65535 --source-address-prefixes 'GatewayManager'  --source-port-ranges '*' -o none
+az network nsg rule create -g $rg -n AllowHTTP --nsg-name $spoke1_appgw_subnet_name-nsg --priority 1010 --access Allow --description AllowHTTP --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 80 --source-address-prefixes '*'  --source-port-ranges '*' -o none
+az network nsg rule create -g $rg -n AllowHTTPS --nsg-name $spoke1_appgw_subnet_name-nsg --priority 1020 --access Allow --description AllowHTTPS --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 443 --source-address-prefixes '*'  --source-port-ranges '*' -o none
+az network vnet subnet update -g $rg -n $spoke1_appgw_subnet_name --vnet-name $spoke1_vnet_name --nsg $spoke1_appgw_subnet_name-nsg -o none
 
+echo "Try now to access the website through application gateway before routing the traffic to nva: http://$appgwpip"
 
 # Download config files
 opnsense_config=~/appgw-nva-vm.xml
@@ -109,7 +117,7 @@ echo -e "\e[1;36mRebooting $hub_nva_subnet_name VM after importing the config fi
 ssh -o StrictHostKeyChecking=no root@$hub_nva_public_ip "sudo reboot"
 
 # clean up cloudinit file
-rm $cloudinit_file
+rm $cloudinit_file $opnsense_config
 
 # front door
 afdname=wadafd$RANDOM
@@ -128,13 +136,13 @@ az afd route create -g $rg --profile-name $afdname --endpoint-name ${afdname}-fe
 
 # AppGW UDR
 echo -e "\e[1;36mCreating $spoke1_appgw_name UDR....\e[0m"
-az network route-table create -g $rg -n $spoke1_appgw_name -l $location --disable-bgp-route-propagation false -o none
+az network route-table create -g $rg -n $spoke1_appgw_name -l $location --disable-bgp-route-propagation yes -o none
 az network route-table route create -g $rg -n to-$spoke1_vm_subnet_name --address-prefix $spoke1_vm_subnet_address --next-hop-type VirtualAppliance --route-table-name $spoke1_appgw_name --next-hop-ip-address $hub_nva_private_ip -o none
 az network vnet subnet update -g $rg -n $spoke1_appgw_subnet_name --vnet-name $spoke1_vnet_name --route-table $spoke1_appgw_name -o none
 
 # VM UDR
 echo -e "\e[1;36mCreating $spoke1_vm_subnet_name UDR....\e[0m"
-az network route-table create -g $rg -n $spoke1_vm_subnet_name -l $location --disable-bgp-route-propagation false -o none
+az network route-table create -g $rg -n $spoke1_vm_subnet_name -l $location --disable-bgp-route-propagation yes -o none
 az network route-table route create -g $rg -n default --address-prefix "0.0.0.0/0" --next-hop-type VirtualAppliance --route-table-name $spoke1_vm_subnet_name --next-hop-ip-address $hub_nva_private_ip -o none
 az network route-table route create -g $rg -n to-$spoke1_appgw_name --address-prefix $spoke1_appgw_subnet_address --next-hop-type VirtualAppliance --route-table-name $spoke1_vm_subnet_name --next-hop-ip-address $hub_nva_private_ip -o none
 az network vnet subnet update -g $rg -n $spoke1_vm_subnet_name --vnet-name $spoke1_vnet_name --route-table $spoke1_vm_subnet_name -o none
