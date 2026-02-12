@@ -70,6 +70,19 @@ az network vnet subnet create -g $rg -n $spoke1_vm_subnet_name --address-prefixe
 az network vnet subnet create -g $rg -n $spoke1_appgw_pl_subnet_name --address-prefixes $spoke1_appgw_pl_subnet_address --vnet-name $spoke1_vnet_name -o none
 appgwplid=$(az network vnet subnet show -g $rg -n $spoke1_appgw_pl_subnet_name --vnet-name $spoke1_vnet_name --query id -o tsv | tr -d '\r')
 
+# spoke1 vm
+echo -e "\e[1;36mDeploying $spoke1_vnet_name VM...\e[0m"
+az network nic create -g $rg -n $spoke1_vnet_name -l $location --vnet-name $spoke1_vnet_name --subnet $spoke1_vm_subnet_name -o none
+az vm create -g $rg -n $spoke1_vnet_name -l $location --image Ubuntu2404 --nics $spoke1_vnet_name --os-disk-name $spoke1_vnet_name --size $vm_size --admin-username $admin_username --admin-password $admin_password --custom-data $cloudinit_file --no-wait
+spoke1_vm_ip=$(az network nic show -g $rg -n $spoke1_vnet_name --query ipConfigurations[0].privateIPAddress -o tsv | tr -d '\r') && echo $spoke1_vnet_name vm private ip: $spoke1_vm_ip
+
+# application gateway
+echo -e "\e[1;36mCreating $spoke1_appgw_name Application Gateway...\e[0m"
+az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method Static --sku Standard -o none
+appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv | tr -d '\r') && echo AppGW public IP: $appgwpip
+az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none --no-wait
+appgwid=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query id -o tsv | tr -d '\r')
+
 # VNet Peering between hub and spoke1
 echo -e "\e[1;36mCreating VNet peering between $hub_vnet_name and $spoke1_vnet_name...\e[0m"
 az network vnet peering create -g $rg -n $hub_vnet_name-to-$spoke1_vnet_name-peering --remote-vnet $spoke1_vnet_name --vnet-name $hub_vnet_name --allow-vnet-access true --allow-forwarded-traffic true -o none
@@ -84,12 +97,6 @@ az network nsg rule create -g $rg -n AllowHTTP --nsg-name $hub_nva_subnet_name-n
 az network nsg rule create -g $rg -n AllowHTTPS --nsg-name $hub_nva_subnet_name-nsg --priority 1020 --access Allow --description AllowHTTPS --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 443 --source-address-prefixes $myip --source-port-ranges '*' -o none
 az network vnet subnet update -g $rg -n $hub_nva_subnet_name --vnet-name $hub_vnet_name --nsg $hub_nva_subnet_name-nsg -o none
 
-# spoke1 vm
-echo -e "\e[1;36mDeploying $spoke1_vnet_name VM...\e[0m"
-az network nic create -g $rg -n $spoke1_vnet_name -l $location --vnet-name $spoke1_vnet_name --subnet $spoke1_vm_subnet_name -o none
-az vm create -g $rg -n $spoke1_vnet_name -l $location --image Ubuntu2404 --nics $spoke1_vnet_name --os-disk-name $spoke1_vnet_name --size $vm_size --admin-username $admin_username --admin-password $admin_password --custom-data $cloudinit_file --no-wait
-spoke1_vm_ip=$(az network nic show -g $rg -n $spoke1_vnet_name --query ipConfigurations[0].privateIPAddress -o tsv | tr -d '\r') && echo $spoke1_vnet_name vm private ip: $spoke1_vm_ip
-
 # Download config files
 opnsense_config=~/appgw-nva-vm.xml
 curl -o $opnsense_config https://raw.githubusercontent.com/wshamroukh/afd-appgw-fw/refs/heads/main/appgw-nva/appgw-nva-vm.xml
@@ -100,14 +107,7 @@ echo -e "\e[1;36mRebooting $hub_nva_subnet_name VM after importing the config fi
 ssh -o StrictHostKeyChecking=no root@$hub_nva_public_ip "sudo reboot"
 
 # clean up cloudinit file
-rm $cloudinit_file
-
-# application gateway
-echo -e "\e[1;36mCreating $spoke1_appgw_name Application Gateway...\e[0m"
-az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method Static --sku Standard -o none
-appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv | tr -d '\r') && echo AppGW public IP: $appgwpip
-az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none
-appgwid=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query id -o tsv | tr -d '\r')
+rm $cloudinit_file $opnsense_config
 
 # Disable Private Link Service Network Policies on the appgw private link subnet
 echo -e "\e[1;36mDisabling Private Link Service Network Policies on $spoke1_appgw_pl_subnet_name subnet...\e[0m"
