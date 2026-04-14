@@ -81,7 +81,6 @@ echo -e "\e[1;36mCreating $spoke1_appgw_name Application Gateway...\e[0m"
 az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method Static --sku Standard -o none
 appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv | tr -d '\r') && echo AppGW public IP: $appgwpip
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none --no-wait
-appgwid=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query id -o tsv | tr -d '\r')
 
 # VNet Peering between hub and spoke1
 echo -e "\e[1;36mCreating VNet peering between $hub_vnet_name and $spoke1_vnet_name...\e[0m"
@@ -118,6 +117,8 @@ appgwfeip=$(az network application-gateway frontend-ip list -g $rg --gateway-nam
 # Create a Private Link configuraion and associate with the frontend IP of application
 echo -e "\e[1;36mAdding a Private Link on the application gateway...\e[0m"
 az network application-gateway private-link add -g $rg -n privateLinkConfig01 --frontend-ip $appgwfeip --gateway-name $spoke1_appgw_name --subnet $spoke1_appgw_pl_subnet_name -o none
+echo -e "\e[1;36mGetting the ID of application gateway...\e[0m"
+appgwid=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query id -o tsv | tr -d '\r')
 
 # front door
 afdname=wadafd$RANDOM
