@@ -109,7 +109,7 @@ echo "Try now to access the website through application gateway before routing t
 
 # Download config files
 opnsense_config=~/appgw-nva-vm.xml
-curl -o $opnsense_config https://raw.githubusercontent.com/wshamroukh/afd-appgw-fw/refs/heads/main/appgw-nva/appgw-nva-vm.xml
+curl -o $opnsense_config https://raw.githubusercontent.com/wshamroukh/afd-appgw-fw/refs/heads/main/afd/afd-appgw-nva.xml
 # Copying config files to site1 pfsense
 echo -e "\e[1;36mCopying configuration files to $site1_vnet_name-fw and installing opnsense firewall...\e[0m"
 scp -o StrictHostKeyChecking=no $opnsense_config root@$hub_nva_public_ip:/conf/config.xml
