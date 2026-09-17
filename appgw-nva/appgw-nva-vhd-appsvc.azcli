@@ -88,7 +88,9 @@ appsvcip=$(az network nic show -g $rg -n $spoke1_app_svc_name-pe-nic --query ipC
 # configure private dns
 echo -e "\e[1;36mCreating Private DNS Zone for $spoke1_app_svc_name App Service...\e[0m"
 az network private-dns zone create -g $rg -n "privatelink.azurewebsites.net" -o none
+echo -e "\e[1;36mLinking Private DNS Zone to $spoke1_vnet_name...\e[0m"
 az network private-dns link vnet create -g $rg --zone-name "privatelink.azurewebsites.net" --name dns-link --virtual-network $spoke1_vnet_name --registration-enabled false -o none
+echo -e "\e[1;36mCreating a DNS record for $spoke1_app_svc_name App Service in privatelink.azurewebsites.net...\e[0m"
 az network private-endpoint dns-zone-group create -g $rg --endpoint-name $spoke1_app_svc_name-pe --name zone-group --private-dns-zone "privatelink.azurewebsites.net" --zone-name webapp -o none
 
 # app service vnet integration:
