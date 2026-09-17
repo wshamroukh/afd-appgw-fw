@@ -97,8 +97,8 @@ az network nsg rule create -g $rg -n AllowHTTPS --nsg-name $hub_nva_subnet_name-
 az network vnet subnet update -g $rg -n $hub_nva_subnet_name --vnet-name $hub_vnet_name --nsg $hub_nva_subnet_name-nsg -o none
 
 # Download config files
-opnsense_config=~/appgw-nva-vm.xml
-curl -o $opnsense_config https://raw.githubusercontent.com/wshamroukh/afd-appgw-fw/refs/heads/main/appgw-nva/appgw-nva-vm.xml
+opnsense_config=~/afd-private-link-appgw-appsvc-pe.xml
+curl -o $opnsense_config https://raw.githubusercontent.com/wshamroukh/afd-appgw-fw/refs/heads/main/afd/afd-private-link-appgw-appsvc-pe.xml
 # Copying config files to pfsense
 echo -e "\e[1;36mCopying configuration files to $hub_nva_subnet_name VM and installing opnsense firewall...\e[0m"
 scp -o StrictHostKeyChecking=no $opnsense_config root@$hub_nva_public_ip:/conf/config.xml
