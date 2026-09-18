@@ -3,8 +3,10 @@ location=centralindia
 
 hub_vnet_name=hub
 hub_vnet_address=10.1.0.0/16
-hub_nva_subnet_name=hub-nva
-hub_nva_subnet_address=10.1.0.0/24
+hub_fw_subnet_name=fw
+hub_fw_subnet_address=10.1.0.0/24
+hub_vm_subnet_name=vm
+hub_vm_subnet_address=10.1.1.0/24
 hub_nva_vm_image=$(az vm image list -l $location -p freebsd --sku 15_1-release-zfs --all --query "[?offer=='freebsd-15_1'].urn" -o tsv | tr -d '\r') && echo $hub_nva_vm_image
 az vm image terms accept --urn $hub_nva_vm_image -o none
 
@@ -45,8 +47,9 @@ sed -i.bak 's/reboot/#reboot/' opnsense-bootstrap.sh.in
 sed -i.bak "s#pkg delete -fa#pkg query -e '%R != \"FreeBSD-base\"' '%n' | xargs -r pkg delete -fy#" opnsense-bootstrap.sh.in
 sudo chmod +x opnsense-bootstrap.sh.in
 sudo sh ~/opnsense-bootstrap.sh.in -y -r 26.7
-fetch https://raw.githubusercontent.com/wshamroukh/afd-appgw-fw/refs/heads/main/appgw-nva/config-vm.xml
-sudo cp ~/config-vm.xml /usr/local/etc/config.xml
+fetch https://raw.githubusercontent.com/wshamroukh/afd-appgw-fw/refs/heads/main/appgw-nva/appgw-nva-vm.xml
+sudo cp ~/appgw-nva-vm.xml /usr/local/etc/config.xml
+sudo cp ~/appgw-nva-vm.xml /conf/config.xml
 sudo pkg install -y bash git py313-setuptools-63.1.0_3 os-frr
 git -c http.sslVerify=false clone https://github.com/Azure/WALinuxAgent.git
 cd ~/WALinuxAgent/
@@ -63,7 +66,8 @@ az group create -l $location -n $rg -o none
 
 # hub vnet
 echo -e "\e[1;36mCreating $hub_vnet_name VNet...\e[0m"
-az network vnet create -g $rg -n $hub_vnet_name -l $location --address-prefixes $hub_vnet_address --subnet-name $hub_nva_subnet_name --subnet-prefixes $hub_nva_subnet_address -o none
+az network vnet create -g $rg -n $hub_vnet_name -l $location --address-prefixes $hub_vnet_address --subnet-name $hub_fw_subnet_name --subnet-prefixes $hub_fw_subnet_address -o none
+az network vnet subnet create -g $rg -n $hub_vm_subnet_name --address-prefixes $hub_vm_subnet_address --vnet-name $hub_vnet_name -o none
 
 # spoke1 vnet
 echo -e "\e[1;36mCreating $spoke1_vnet_name VNet...\e[0m"
@@ -71,13 +75,15 @@ az network vnet create -g $rg -n $spoke1_vnet_name -l $location --address-prefix
 az network vnet subnet create -g $rg -n $spoke1_vm_subnet_name --address-prefixes $spoke1_vm_subnet_address --vnet-name $spoke1_vnet_name -o none
 
 # hub fw opnsense vm
-echo -e "\e[1;36mCreating $hub_nva_subnet_name VM...\e[0m"
-az network public-ip create -g $rg -n "$hub_nva_subnet_name" -l $location --allocation-method Static --sku Basic -o none
-az network nic create -g $rg -n "$hub_nva_subnet_name" --subnet $hub_nva_subnet_name --vnet-name $hub_vnet_name --ip-forwarding true --private-ip-address 10.1.0.4 --public-ip-address "$hub_nva_subnet_name" -o none
-az vm create -g $rg -n $hub_nva_subnet_name --image $hub_nva_vm_image --nics "$hub_nva_subnet_name" --os-disk-name $hub_nva_subnet_name --size Standard_B4als_v2 --admin-username $admin_username --generate-ssh-keys --no-wait
+echo -e "\e[1;36mCreating $hub_vnet_name-fw VM...\e[0m"
+az network public-ip create -g $rg -n $hub_vnet_name-fw -l $location --allocation-method Static --sku Basic -o none
+az network nic create -g $rg -n $hub_vnet_name-fw-wan --subnet $hub_fw_subnet_name --vnet-name $hub_vnet_name --ip-forwarding true --private-ip-address 10.1.0.4 --public-ip-address "$hub_vnet_name-fw" -o none
+az network nic create -g $rg -n $hub_vnet_name-fw-lan --subnet $hub_vm_subnet_name --vnet-name $hub_vnet_name --ip-forwarding true --private-ip-address 10.1.1.4 -o none
+az vm create -g $rg -n $hub_vnet_name-fw --image $hub_nva_vm_image --nics $hub_vnet_name-fw-wan $hub_vnet_name-fw-lan --os-disk-name $hub_vnet_name-fw --size Standard_B4als_v2 --admin-username $admin_username --generate-ssh-keys --no-wait
 # hub fw opnsense vm details:
-hub_nva_public_ip=$(az network public-ip show -g $rg -n "$hub_nva_subnet_name" --query 'ipAddress' -o tsv | tr -d '\r') && echo $hub_nva_subnet_name public ip: $hub_nva_public_ip
-hub_nva_private_ip=$(az network nic show -g $rg -n $hub_nva_subnet_name --query ipConfigurations[].privateIPAddress -o tsv | tr -d '\r') && echo $hub_nva_subnet_name private IP: $hub_nva_private_ip
+hub_fw_public_ip=$(az network public-ip show -g $rg -n "$hub_vnet_name-fw" --query 'ipAddress' -o tsv | tr -d '\r') && echo "$hub_vnet_name-fw" public ip: $hub_fw_public_ip
+hub_fw_wan_private_ip=$(az network nic show -g $rg -n "$hub_vnet_name-fw-wan" --query ipConfigurations[].privateIPAddress -o tsv | tr -d '\r') && echo "$hub_vnet_name-fw" WAN private IP: $hub_fw_wan_private_ip
+hub_fw_lan_private_ip=$(az network nic show -g $rg -n "$hub_vnet_name-fw-lan" --query ipConfigurations[].privateIPAddress -o tsv | tr -d '\r') && echo "$hub_vnet_name-fw" LAN private IP: $hub_fw_lan_private_ip
 
 # VNet Peering between hub and spoke1
 echo -e "\e[1;36mCreating VNet peering between $hub_vnet_name and $spoke1_vnet_name...\e[0m"
@@ -85,13 +91,13 @@ az network vnet peering create -g $rg -n $hub_vnet_name-to-$spoke1_vnet_name-pee
 az network vnet peering create -g $rg -n $spoke1_vnet_name-to-$hub_vnet_name-peering --remote-vnet $hub_vnet_name --vnet-name $spoke1_vnet_name --allow-vnet-access true --allow-forwarded-traffic true -o none
 
 # hub fw opnsense nsg
-echo -e "\e[1;36mCreating $hub_nva_subnet_name-nsg NSG...\e[0m"
+echo -e "\e[1;36mCreating $hub_vnet_name-fw NSG...\e[0m"
 myip=$(curl -s4 https://ifconfig.co/)
-az network nsg create -g $rg -n $hub_nva_subnet_name-nsg -l $location -o none
-az network nsg rule create -g $rg -n AllowSSH --nsg-name $hub_nva_subnet_name-nsg --priority 1000 --access Allow --description AllowSSH --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 22 --source-address-prefixes $myip --source-port-ranges '*' -o none
-az network nsg rule create -g $rg -n AllowHTTP --nsg-name $hub_nva_subnet_name-nsg --priority 1010 --access Allow --description AllowHTTP --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 80 --source-address-prefixes $myip --source-port-ranges '*' -o none
-az network nsg rule create -g $rg -n AllowHTTPS --nsg-name $hub_nva_subnet_name-nsg --priority 1020 --access Allow --description AllowHTTPS --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 443 --source-address-prefixes $myip --source-port-ranges '*' -o none
-az network vnet subnet update -g $rg -n $hub_nva_subnet_name --vnet-name $hub_vnet_name --nsg $hub_nva_subnet_name-nsg -o none
+az network nsg create -g $rg -n $hub_vnet_name-fw -l $location -o none
+az network nsg rule create -g $rg -n AllowSSH --nsg-name $hub_vnet_name-fw --priority 1000 --access Allow --description AllowSSH --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 22 --source-address-prefixes $myip --source-port-ranges '*' -o none
+az network nsg rule create -g $rg -n AllowHTTP --nsg-name $hub_vnet_name-fw --priority 1010 --access Allow --description AllowHTTP --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 80 --source-address-prefixes $myip --source-port-ranges '*' -o none
+az network nsg rule create -g $rg -n AllowHTTPS --nsg-name $hub_vnet_name-fw --priority 1020 --access Allow --description AllowHTTPS --protocol Tcp --direction Inbound --destination-address-prefixes '*' --destination-port-ranges 443 --source-address-prefixes $myip --source-port-ranges '*' -o none
+az network vnet subnet update -g $rg -n $hub_fw_subnet_name --vnet-name $hub_vnet_name --nsg $hub_vnet_name-fw -o none
 
 # spoke1 vm
 echo -e "\e[1;36mDeploying $spoke1_vnet_name VM...\e[0m"
@@ -101,30 +107,32 @@ spoke1_vm_ip=$(az network nic show -g $rg -n $spoke1_vnet_name --query ipConfigu
 
 # application gateway
 echo -e "\e[1;36mCreating $spoke1_appgw_name Application Gateway...\e[0m"
-az network public-ip create -g $rg -n $spoke1_appgw_name-ip --allocation-method Static --sku Standard -o none
-appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name-ip --query ipAddress -o tsv | tr -d '\r') && echo AppGW public IP: $appgwpip
-az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name-ip --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none
+az network public-ip create -g $rg -n $spoke1_appgw_name --allocation-method Static --sku Standard -o none
+appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name --query ipAddress -o tsv | tr -d '\r') && echo AppGW public IP: $appgwpip
+az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --public-ip-address $spoke1_appgw_name --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none
 
 echo "Try now to access the website through application gateway before routing the traffic to nva: http://$appgwpip"
 
 # configuring opnsense
-echo -e "\e[1;36mConfiguring $hub_nva_subnet_name...\e[0m"
-echo -e "\e[1;36mCopying configuration files to $vm_name and installing opnsense firewall...\e[0m"
-scp -o StrictHostKeyChecking=no $opnsense_init_file $admin_username@$hub_nva_public_ip:/home/$admin_username
-ssh -o StrictHostKeyChecking=no $admin_username@$hub_nva_public_ip "chmod +x /home/$admin_username/opnsense_init.sh && sh /home/$admin_username/opnsense_init.sh"
+echo -e "\e[1;36mConfiguring $hub_vnet_name-fw...\e[0m"
+echo -e "\e[1;36mCopying configuration files to $hub_vnet_name-fw and installing opnsense firewall...\e[0m"
+scp -o StrictHostKeyChecking=no $opnsense_init_file $admin_username@$hub_fw_public_ip:/home/$admin_username
+ssh -o StrictHostKeyChecking=no $admin_username@$hub_fw_public_ip "chmod +x /home/$admin_username/opnsense_init.sh && sh /home/$admin_username/opnsense_init.sh"
 rm $opnsense_init_file $cloudinit_file
+
+ssh-keygen -R $hub_fw_public_ip
 
 # AppGW UDR
 echo -e "\e[1;36mCreating $spoke1_appgw_name UDR....\e[0m"
 az network route-table create -g $rg -n $spoke1_appgw_name -l $location --disable-bgp-route-propagation false -o none
-az network route-table route create -g $rg -n to-$spoke1_vm_subnet_name --address-prefix $spoke1_vm_subnet_address --next-hop-type VirtualAppliance --route-table-name $spoke1_appgw_name --next-hop-ip-address $hub_nva_private_ip -o none
+az network route-table route create -g $rg -n to-$spoke1_vm_subnet_name --address-prefix $spoke1_vm_subnet_address --next-hop-type VirtualAppliance --route-table-name $spoke1_appgw_name --next-hop-ip-address $hub_fw_lan_private_ip -o none
 az network vnet subnet update -g $rg -n $spoke1_appgw_subnet_name --vnet-name $spoke1_vnet_name --route-table $spoke1_appgw_name -o none
 
 # VM UDR
 echo -e "\e[1;36mCreating $spoke1_vm_subnet_name UDR....\e[0m"
 az network route-table create -g $rg -n $spoke1_vm_subnet_name -l $location --disable-bgp-route-propagation false -o none
-az network route-table route create -g $rg -n default --address-prefix "0.0.0.0/0" --next-hop-type VirtualAppliance --route-table-name $spoke1_vm_subnet_name --next-hop-ip-address $hub_nva_private_ip -o none
-az network route-table route create -g $rg -n to-$spoke1_appgw_name --address-prefix $spoke1_appgw_subnet_address --next-hop-type VirtualAppliance --route-table-name $spoke1_vm_subnet_name --next-hop-ip-address $hub_nva_private_ip -o none
+az network route-table route create -g $rg -n default --address-prefix "0.0.0.0/0" --next-hop-type VirtualAppliance --route-table-name $spoke1_vm_subnet_name --next-hop-ip-address $hub_fw_lan_private_ip -o none
+az network route-table route create -g $rg -n to-$spoke1_appgw_name --address-prefix $spoke1_appgw_subnet_address --next-hop-type VirtualAppliance --route-table-name $spoke1_vm_subnet_name --next-hop-ip-address $hub_fw_lan_private_ip -o none
 az network vnet subnet update -g $rg -n $spoke1_vm_subnet_name --vnet-name $spoke1_vnet_name --route-table $spoke1_vm_subnet_name -o none
 
 echo "Access nva management portal via https://$hub_nva_public_ip username: root, passwd: opnsense - it is highly recommended to change the password as soon as you login"
