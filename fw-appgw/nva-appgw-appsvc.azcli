@@ -3,7 +3,13 @@ location=centralindia
 
 hub_vnet_name=hub
 hub_vnet_address=10.1.0.0/16
+hub_fw_subnet_name=fw
 hub_fw_subnet_address=10.1.0.0/24
+hub_vm_subnet_name=vm
+hub_vm_subnet_address=10.1.1.0/24
+
+vm_image=$(az vm image list -l $location -p freebsd --sku 15_1-release-zfs --all --query "[?offer=='freebsd-15_1'].urn" -o tsv | tr -d '\r') && echo $vm_image
+az vm image terms accept --urn $vm_image -o none
 
 spoke1_vnet_name=spoke1
 spoke1_vnet_address=10.11.0.0/16
@@ -14,10 +20,31 @@ spoke1_pe_subnet_address=10.11.1.0/24
 spoke1_appsvc_subnet_name=appsvc
 spoke1_appsvc_subnet_address=10.11.2.0/24
 
-spoke1_appgw_name=appgw-$RANDOM
+spoke1_appgw_name=appgw
 spoke1_app_svc_name=waddahApp-$RANDOM
 
 admin_username=$(whoami)
+
+opnsense_init_file=opnsense_init.sh
+cat <<EOF > $opnsense_init_file
+#!/usr/local/bin/bash
+fetch https://raw.githubusercontent.com/opnsense/update/master/src/bootstrap/opnsense-bootstrap.sh.in
+sed -i.bak 's/reboot/#reboot/' opnsense-bootstrap.sh.in
+sed -i.bak "s#pkg delete -fa#pkg query -e '%R != \"FreeBSD-base\"' '%n' | xargs -r pkg delete -fy#" opnsense-bootstrap.sh.in
+sudo chmod +x opnsense-bootstrap.sh.in
+sudo sh ~/opnsense-bootstrap.sh.in -y -r 26.7
+fetch https://raw.githubusercontent.com/wshamroukh/afd-appgw-fw/refs/heads/main/fw-appgw/nva-appgw-vm.xml
+sudo cp ~/nva-appgw-vm.xml /usr/local/etc/config.xml
+sudo cp ~/nva-appgw-vm.xml /conf/config.xml
+sudo pkg install -y bash git py313-setuptools-63.1.0_3 os-frr
+git -c http.sslVerify=false clone https://github.com/Azure/WALinuxAgent.git
+cd ~/WALinuxAgent/
+git checkout v2.15.0.1
+sudo python setup.py install --register-service --force
+waagent -register-service
+waagent start
+sudo reboot
+EOF
 
 # Resource Groups
 echo -e "\e[1;36mCreating $rg Resource Group...\e[0m"
@@ -25,7 +52,19 @@ az group create -l $location -n $rg -o none
 
 # hub1 vnet
 echo -e "\e[1;36mCreating $hub_vnet_name VNet...\e[0m"
-az network vnet create -g $rg -n $hub_vnet_name -l $location --address-prefixes $hub_vnet_address --subnet-name AzureFirewallSubnet --subnet-prefixes $hub_fw_subnet_address -o none
+az network vnet create -g $rg -n $hub_vnet_name -l $location --address-prefixes $hub_vnet_address --subnet-name $hub_fw_subnet_name --subnet-prefixes $hub_fw_subnet_address -o none
+az network vnet subnet create -g $rg -n $hub_vm_subnet_name --address-prefixes $hub_vm_subnet_address --vnet-name $hub_vnet_name -o none
+
+# hub fw opnsense vm
+echo -e "\e[1;36mCreating $hub_vnet_name-fw VM...\e[0m"
+az network public-ip create -g $rg -n $hub_vnet_name-fw -l $location --allocation-method Static --sku Basic -o none
+az network nic create -g $rg -n $hub_vnet_name-fw-wan --subnet $hub_fw_subnet_name --vnet-name $hub_vnet_name --ip-forwarding true --private-ip-address 10.1.0.4 --public-ip-address $hub_vnet_name-fw -o none
+az network nic create -g $rg -n $hub_vnet_name-fw-lan --subnet $hub_vm_subnet_name --vnet-name $hub_vnet_name --ip-forwarding true --private-ip-address 10.1.1.4 -o none
+az vm create -g $rg -n $hub_vnet_name-fw --image $hub_nva_vm_image --nics $hub_vnet_name-fw-wan $hub_vnet_name-fw-lan --os-disk-name $hub_vnet_name-fw --size Standard_B4als_v2 --admin-username $admin_username --generate-ssh-keys --no-wait
+# hub fw opnsense vm details:
+hub_fw_public_ip=$(az network public-ip show -g $rg -n "$hub_vnet_name-fw" --query 'ipAddress' -o tsv | tr -d '\r') && echo "$hub_vnet_name-fw" public ip: $hub_fw_public_ip
+hub_fw_wan_private_ip=$(az network nic show -g $rg -n "$hub_vnet_name-fw-wan" --query ipConfigurations[].privateIPAddress -o tsv | tr -d '\r') && echo "$hub_vnet_name-fw" WAN private IP: $hub_fw_wan_private_ip
+hub_fw_lan_private_ip=$(az network nic show -g $rg -n "$hub_vnet_name-fw-lan" --query ipConfigurations[].privateIPAddress -o tsv | tr -d '\r') && echo "$hub_vnet_name-fw" LAN private IP: $hub_fw_lan_private_ip
 
 # spoke1 vnet
 echo -e "\e[1;36mCreating $spoke1_vnet_name VNet...\e[0m"
@@ -52,7 +91,9 @@ az network private-endpoint create -g $rg -n $spoke1_app_svc_name-pe --nic-name 
 # configure private dns
 echo -e "\e[1;36mCreating Private DNS Zone for $spoke1_app_svc_name App Service...\e[0m"
 az network private-dns zone create -g $rg -n "privatelink.azurewebsites.net" -o none
+echo -e "\e[1;36mLink privatelink.azurewebsites.net DNS Zone to $spoke1_vnet_name VNet..\e[0m"
 az network private-dns link vnet create -g $rg --zone-name "privatelink.azurewebsites.net" --name dns-link --virtual-network $spoke1_vnet_name --registration-enabled false -o none
+echo -e "\e[1;36mCreate a private DNS record for $spoke1_app_svc_name-pe in privatelink.azurewebsites.net..\e[0m"
 az network private-endpoint dns-zone-group create -g $rg --endpoint-name $spoke1_app_svc_name-pe --name zone-group --private-dns-zone "privatelink.azurewebsites.net" --zone-name webapp -o none
 
 # app service vnet integration:
@@ -66,42 +107,24 @@ appgwpip=$(az network public-ip show -g $rg -n $spoke1_appgw_name --query ipAddr
 az network application-gateway create -g $rg -n $spoke1_appgw_name --capacity 1 --sku Standard_v2 --vnet-name $spoke1_vnet_name --private-ip-address 10.11.0.10 --public-ip-address $spoke1_appgw_name --subnet $spoke1_appgw_subnet_name --servers $spoke1_vm_ip --priority 100 -o none
 appgwhttpsettings=$(az network application-gateway http-settings list -g $rg --gateway-name $spoke1_appgw_name --query [].name -o tsv | tr -d '\r')
 az network application-gateway http-settings update -g $rg --name $appgwhttpsettings --gateway-name $spoke1_appgw_name --host-name $appfqdn --protocol Https --port 443 -o none
-appgwprivip=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query frontendIPConfigurations[0].privateIPAddress -o tsv | tr -d '\r')
+appgwprivip=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query frontendIPConfigurations[0].privateIPAddress -o tsv | tr -d '\r') && echo "Application Gateway private IP: $appgwprivip"
 frontendid=$(az network application-gateway show -g $rg -n $spoke1_appgw_name --query frontendIPConfigurations[0].id -o tsv | tr -d '\r')
 # associate the listener with private frontend
 echo -e "\e[1;36mAssociating the private frontend $appgwprivip with the http listener on $spoke1_appgw_name Application Gateway...\e[0m"
 az resource update -g $rg -n $spoke1_appgw_name --resource-type "Microsoft.Network/applicationGateways" --set properties.httpListeners[0].properties.frontendIPConfiguration.id=$frontendid -o none
 
-# hub1 azure firewall policy
-fw_name=$hub_vnet_name-fw-$RANDOM
-echo -e "\e[1;36mCreating $fw_name-policy Azure Firewall Policy....\e[0m"
-az extension add -n azure-firewall
-az extension update -n azure-firewall
-az network public-ip create -g $rg -n $fw_name -l $location --allocation-method Static --sku Standard -o none
-az network firewall policy create -g $rg -n $fw_name-policy -l $location -o none
-az network firewall policy rule-collection-group create -g $rg -n $hub_vnet_name-RuleCollectionGroup --policy-name $fw_name-policy --priority 100 -o none
-# Add A DNAT Rule
-echo -e "\e[1;36mCreating a DNAT rule to access the website through the firewall....\e[0m"
-az network firewall policy rule-collection-group collection add-nat-collection -g $rg -n $hub_vnet_name-DNATCollection --policy-name $fw_name-policy --rcg-name $hub_vnet_name-RuleCollectionGroup --collection-priority 100 --ip-protocols Tcp --dest-addr $hub_fw_pip --destination-ports 80 --source-addresses '*' --translated-address $appgwprivip --translated-port 80 --rule-name allowDNATtoAppgw --action DNAT -o none
+# configuring opnsense
+echo -e "\e[1;36mConfiguring $hub_vnet_name-fw...\e[0m"
+echo -e "\e[1;36mCopying configuration files to $hub_vnet_name-fw and installing opnsense firewall...\e[0m"
+scp -o StrictHostKeyChecking=no $opnsense_init_file $admin_username@$hub_fw_public_ip:/home/$admin_username
+ssh -o StrictHostKeyChecking=no $admin_username@$hub_fw_public_ip "chmod +x /home/$admin_username/opnsense_init.sh && sh /home/$admin_username/opnsense_init.sh"
 
-# hub azure firewall
-echo -e "\e[1;36mCreating $fw_name Azure Firewall....\e[0m"
-az network firewall create -g $rg -n $fw_name -l $location --sku AZFW_VNet --firewall-policy $fw_name-policy -o none
-az network firewall ip-config create -g $rg -n $fw_name-config --firewall-name $fw_name --public-ip-address $fw_name --vnet-name $hub_vnet_name -o none
-az network firewall update -g $rg -n $fw_name -o none
-hub_fw_private_ip=$(az network firewall show -g $rg -n $fw_name --query ipConfigurations[0].privateIPAddress -o tsv | tr -d '\r') && echo "$fw_name private IP address: $hub_fw_private_ip"
-hub_fw_pip=$(az network public-ip show -g $rg -n $fw_name --query ipAddress -o tsv | tr -d '\r') && echo "$fw_name public IP address: $hub_fw_pip"
-azfwid=$(az network firewall show -g $rg -n $fw_name --query id -o tsv | tr -d '\r')
+# clean up cloudinit file
+rm $cloudinit_file $opnsense_init_file
 
-# Log analytics Workspace
-echo -e "\e[1;36mCreating Log Analytics Workspace....\e[0m"
-law_name=$hub_vnet_name-fw-law-$RANDOM
-az monitor log-analytics workspace create -g $rg -n $law_name -o none
-lawid=$(az monitor log-analytics workspace show -g $rg -n $law_name --query id -o tsv | tr -d '\r')
-# reference https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/azfwapplicationrule
-az monitor diagnostic-settings create -n azfwlogs -g $rg --resource $azfwid --workspace $lawid --export-to-resource-specific true --logs '[{"category":"AZFWApplicationRule","Enabled":true}, {"category":"AZFWNetworkRule","Enabled":true}, {"category":"AZFWApplicationRuleAggregation","Enabled":true}, {"category":"AZFWDnsQuery","Enabled":true}, {"category":"AZFWFlowTrace","Enabled":true} , {"category":"AZFWIdpsSignature","Enabled":true}, {"category":"AZFWNatRule","Enabled":true}, {"category":"AZFWFatFlow","Enabled":true}, {"category":"AZFWNatRuleAggregation","Enabled":true}, {"category":"AZFWNetworkRuleAggregation","Enabled":true}, {"category":"AZFWThreatIntel","Enabled":true}]' -o none
+ssh-keygen -R $hub_fw_public_ip
 
-echo "Try now to access the website through azure firewall: http://$hub_fw_pip"
+echo "Try now to access the website through NVA firewall: http://$hub_fw_public_ip:8080"
 
 # Cleanup
 # az group delete -g $rg --yes --no-wait -o none
